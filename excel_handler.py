@@ -152,3 +152,36 @@ class ExcelHandler:
         
         df = pd.DataFrame(data)
         df.to_excel(file_path, index=False, sheet_name='Species')
+
+    @staticmethod
+    def write_solution(solution: List[Species], feeding_history: List[Dict], file_path: str):
+        """Write solution and feeding history to Excel file"""
+        # Create Species data
+        species_data = []
+        
+        for species in solution:
+            species_data.append({
+                'id': species.id,
+                'name': species.name,
+                'type': species.species_type.value,
+                'calories_provided': species.calories_provided,
+                'calories_needed': species.calories_needed,
+                'bin': species.bin,
+                'predator_1': species.predators[0] if len(species.predators) > 0 else '',
+                'predator_2': species.predators[1] if len(species.predators) > 1 else '',
+                'predator_3': species.predators[2] if len(species.predators) > 2 else '',
+                'predator_4': species.predators[3] if len(species.predators) > 3 else '',
+                'prey_1': species.prey[0] if len(species.prey) > 0 else '',
+                'prey_2': species.prey[1] if len(species.prey) > 1 else '',
+                'prey_3': species.prey[2] if len(species.prey) > 2 else '',
+                'prey_4': species.prey[3] if len(species.prey) > 3 else ''
+            })
+        
+        # Write to Excel
+        with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
+            # Write species sheet
+            pd.DataFrame(species_data).to_excel(writer, sheet_name='Species', index=False)
+            
+            # Write feeding history if provided
+            if feeding_history:
+                pd.DataFrame(feeding_history).to_excel(writer, sheet_name='Feeding_History', index=False)
