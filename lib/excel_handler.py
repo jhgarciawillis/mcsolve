@@ -1,76 +1,44 @@
-# utils/excel_handler.py
-
 import pandas as pd
-import numpy as np
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from pathlib import Path
-from ..core.species import Species, SpeciesType, Ecosystem
+from .species import Species, SpeciesType, Ecosystem
+from .constants import REQUIRED_SHEETS, SPECIES_COLUMNS, RELATIONSHIP_COLUMNS
 
 class ExcelHandler:
-    # Template structure
-    REQUIRED_SHEETS = ['Species', 'Relationships']
-    SPECIES_COLUMNS = [
-        'id', 'name', 'type', 'calories_provided', 
-        'calories_needed', 'bin'
-    ]
-    RELATIONSHIP_COLUMNS = ['predator_id', 'prey_id']
-
     @staticmethod
     def create_template(file_path: str):
         """Create an empty template Excel file"""
-        with pd.ExcelWriter(file_path) as writer:
+        with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
             # Species sheet
-            species_df = pd.DataFrame(columns=ExcelHandler.SPECIES_COLUMNS)
+            species_df = pd.DataFrame(columns=SPECIES_COLUMNS)
             species_df.to_excel(writer, sheet_name='Species', index=False)
             
             # Relationships sheet
-            relationships_df = pd.DataFrame(columns=ExcelHandler.RELATIONSHIP_COLUMNS)
+            relationships_df = pd.DataFrame(columns=RELATIONSHIP_COLUMNS)
             relationships_df.to_excel(writer, sheet_name='Relationships', index=False)
-            
-            # Add validation rules
-            workbook = writer.book
-            worksheet = writer.sheets['Species']
-            
-            # Add type dropdown
-            type_validation = workbook.add_format({
-                'validation': {
-                    'type': 'list',
-                    'source': ['producer', 'animal']
-                }
-            })
-            worksheet.data_validation('C2:C1048576', type_validation)
-            
-            # Add bin dropdown
-            bin_validation = workbook.add_format({
-                'validation': {
-                    'type': 'list',
-                    'source': ['A', 'B', 'C']
-                }
-            })
-            worksheet.data_validation('F2:F1048576', bin_validation)
 
     @staticmethod
-    def validate_excel_format(file_path: str) -> tuple[bool, List[str]]:
+    def validate_excel_format(file_path: str) -> Tuple[bool, List[str]]:
         """Validate if Excel file matches required format"""
         errors = []
         try:
             xlsx = pd.ExcelFile(file_path)
             
             # Check required sheets
-            missing_sheets = set(ExcelHandler.REQUIRED_SHEETS) - set(xlsx.sheet_names)
+            missing_sheets = set(REQUIRED_SHEETS) - set(xlsx.sheet_names)
             if missing_sheets:
                 errors.append(f"Missing sheets: {missing_sheets}")
                 return False, errors
             
             # Check Species sheet
             species_df = pd.read_excel(xlsx, 'Species')
-            missing_cols = set(ExcelHandler.SPECIES_COLUMNS) - set(species_df.columns)
+            missing_cols = set(SPECIES_COLUMNS) - set(species_df.columns)
             if missing_cols:
                 errors.append(f"Missing columns in Species sheet: {missing_cols}")
             
             # Check Relationships sheet
             rel_df = pd.read_excel(xlsx, 'Relationships')
-            missing_cols = set(ExcelHandler.RELATIONSHIP_COLUMNS) - set(rel_df.columns)
+            missing_cols = set(RELATIONSHIP_COLUMNS) - set(rel_df.columns)
             if missing_cols:
                 errors.append(f"Missing columns in Relationships sheet: {missing_cols}")
             
@@ -140,3 +108,58 @@ class ExcelHandler:
             species_list.append(species)
         
         return Ecosystem(species_list)
+
+    @staticmethod
+    def write_scenario(ecosystem: Ecosystem, file_path: str):
+        """Write ecosystem to Excel file"""
+        # Create Species data
+        species_data = []
+        relationships_data = []
+        
+        for species in ecosystem.species:
+            species_data.append({
+                'id': species.id,
+                'name': species.name,
+                'type': species.species_type.value,
+                'calories_provided': species.calories_provided,
+                'calories_needed': species.calories_needed,
+                'bin': species.bin
+            })
+            
+            # Create relationship data
+            for food_source in species.food_sources:
+                relationships_data.append({
+                    'predator_id': species.id,
+                    'prey_id': food_source
+                })
+        
+        # Write to Excel
+        with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
+            pd.DataFrame(species_data).to_excel(writer, sheet_name='Species', index=False)
+            pd.DataFrame(relationships_data).to_excel(writer, sheet_name='Relationships', index=False)
+
+    @staticmethod
+    def write_solution(solution: List[Species], feeding_history: List[Dict], file_path: str):
+        """Write solution and feeding history to Excel file"""
+        species_data = [{
+            'id': s.id,
+            'name': s.name,
+            'type': s.species_type.value,
+            'calories_provided': s.calories_provided,
+            'calories_needed': s.calories_needed,
+            'bin': s.bin
+        } for s in solution]
+        
+        relationships_data = []
+        for species in solution:
+            for food_source in species.food_sources:
+                relationships_data.append({
+                    'predator_id': species.id,
+                    'prey_id': food_source
+                })
+        
+        with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
+            pd.DataFrame(species_data).to_excel(writer, sheet_name='Species', index=False)
+            pd.DataFrame(relationships_data).to_excel(writer, sheet_name='Relationships', index=False)
+            if feeding_history:
+                pd.DataFrame(feeding_history).to_excel(writer, sheet_name='Feeding_History', index=False)
