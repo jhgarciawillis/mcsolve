@@ -8,12 +8,16 @@ from .constants import BINS, PRODUCERS_PER_BIN, ANIMALS_PER_BIN
 class ScenarioGenerator:
     def __init__(self):
         self.calorie_ranges = {
-            'producer': (50, 200),
+            'producer': (1000, 6000),
             'animal': {
-                'provided': (30, 150),
-                'needed': (20, 100)
+                'provided': (1000, 6000),
+                'needed': (1000, 6000)
             }
         }
+
+    def _round_to_50(self, number: int) -> int:
+        """Round a number to the nearest 50"""
+        return round(number / 50) * 50
 
     def generate_scenario(self) -> Ecosystem:
         """Generate a complete scenario with valid species across all bins"""
@@ -38,13 +42,16 @@ class ScenarioGenerator:
         """Generate producers for a specific bin"""
         producers = []
         for i in range(PRODUCERS_PER_BIN):
+            calories = self._round_to_50(random.randint(*self.calorie_ranges['producer']))
             producer = Species(
                 id=f"P_{bin_id}_{i+1}",
                 name=f"Producer {bin_id}{i+1}",
                 species_type=SpeciesType.PRODUCER,
-                calories_provided=random.randint(*self.calorie_ranges['producer']),
-                calories_needed=0,
-                bin=bin_id
+                calories_provided=calories,
+                calories_needed=0,  # Producers don't need calories
+                bin=bin_id,
+                food_sources=set(),  # Producers have no food sources
+                eaten_by=set()
             )
             producers.append(producer)
         return producers
@@ -53,13 +60,17 @@ class ScenarioGenerator:
         """Generate animals for a specific bin"""
         animals = []
         for i in range(ANIMALS_PER_BIN):
+            calories_provided = self._round_to_50(random.randint(*self.calorie_ranges['animal']['provided']))
+            calories_needed = self._round_to_50(random.randint(*self.calorie_ranges['animal']['needed']))
             animal = Species(
                 id=f"A_{bin_id}_{i+1}",
                 name=f"Animal {bin_id}{i+1}",
                 species_type=SpeciesType.ANIMAL,
-                calories_provided=random.randint(*self.calorie_ranges['animal']['provided']),
-                calories_needed=random.randint(*self.calorie_ranges['animal']['needed']),
-                bin=bin_id
+                calories_provided=calories_provided,
+                calories_needed=calories_needed,
+                bin=bin_id,
+                food_sources=set(),
+                eaten_by=set()
             )
             animals.append(animal)
         return animals
@@ -69,20 +80,27 @@ class ScenarioGenerator:
         producers = [s for s in species if s.species_type == SpeciesType.PRODUCER]
         animals = [s for s in species if s.species_type == SpeciesType.ANIMAL]
         
+        # Ensure producers have no food sources and no calories needed
+        for producer in producers:
+            producer.food_sources = set()
+            producer.calories_needed = 0
+        
         for animal in animals:
-            # Each animal has 30% chance to eat each producer in its bin
+            # Each animal has 40% chance to eat each producer in its bin
             for producer in producers:
-                if producer.bin == animal.bin and random.random() < 0.3:
+                if producer.bin == animal.bin and random.random() < 0.4:
                     animal.food_sources.add(producer.id)
                     producer.eaten_by.add(animal.id)
             
-            # Each animal has 20% chance to eat each smaller animal in its bin
+            # Each animal has 30% chance to eat each smaller animal in its bin
             potential_prey = [a for a in animals 
                             if a.bin == animal.bin 
-                            and a.calories_provided < animal.calories_provided]
+                            and a.calories_provided < animal.calories_provided
+                            and a.id != animal.id]  # Prevent self-predation
             
+            # Allow multiple prey selection
             for prey in potential_prey:
-                if random.random() < 0.2:
+                if random.random() < 0.3:
                     animal.food_sources.add(prey.id)
                     prey.eaten_by.add(animal.id)
 
