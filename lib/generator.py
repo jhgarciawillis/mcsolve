@@ -123,36 +123,99 @@ class ScenarioGenerator:
 
 class SolutionGenerator:
     @staticmethod
-    def generate_all_solutions(ecosystem: Ecosystem) -> List[List[Species]]:
+    def generate_all_solutions(ecosystem: Ecosystem, debug_container=None, debug_mode=False) -> List[List[Species]]:
         """Generate all possible valid solutions for the ecosystem"""
         from itertools import combinations
+        
+        if debug_mode:
+            debug_container.write("Starting solution generation...")
         
         all_solutions = []
         producers = ecosystem.get_producers()
         animals = ecosystem.get_animals()
         validator = SolutionValidator()
         
-        for producer_combo in combinations(producers, 3):
-            for animal_combo in combinations(animals, 5):
+        if debug_mode:
+            debug_container.write(f"Total producers available: {len(producers)}")
+            debug_container.write(f"Total animals available: {len(animals)}")
+        
+        producer_combinations = list(combinations(producers, 3))
+        animal_combinations = list(combinations(animals, 5))
+        
+        if debug_mode:
+            debug_container.write(f"Total producer combinations: {len(producer_combinations)}")
+            debug_container.write(f"Total animal combinations: {len(animal_combinations)}")
+            total_combinations = len(producer_combinations) * len(animal_combinations)
+            debug_container.write(f"Total possible combinations: {total_combinations}")
+            
+            progress_step = max(1, total_combinations // 100)
+            combination_count = 0
+        
+        for producer_combo in producer_combinations:
+            for animal_combo in animal_combinations:
+                if debug_mode:
+                    combination_count += 1
+                    if combination_count % progress_step == 0:
+                        progress = (combination_count / total_combinations) * 100
+                        debug_container.write(f"Progress: {progress:.1f}% ({combination_count}/{total_combinations})")
+                
                 solution = list(producer_combo) + list(animal_combo)
-                is_valid, _ = validator.validate_solution(ecosystem, solution)
+                
+                if debug_mode:
+                    debug_container.write(f"\nTesting combination {combination_count}:")
+                    debug_container.write(f"Producers: {[p.name for p in producer_combo]}")
+                    debug_container.write(f"Animals: {[a.name for a in animal_combo]}")
+                
+                # Validate the solution
+                is_valid, errors = validator.validate_solution(ecosystem, solution)
+                
+                if debug_mode and not is_valid:
+                    debug_container.write(f"Invalid solution: {errors}")
+                
                 if is_valid:
+                    if debug_mode:
+                        debug_container.write("Valid solution found!")
                     all_solutions.append(solution)
+        
+        if debug_mode:
+            debug_container.write(f"\nSolution generation complete. Found {len(all_solutions)} valid solutions.")
         
         return all_solutions
 
     @staticmethod
-    def rank_solutions(solutions: List[List[Species]]) -> List[Tuple[List[Species], float]]:
+    def rank_solutions(solutions: List[List[Species]], debug_container=None, debug_mode=False) -> List[Tuple[List[Species], float]]:
         """Rank solutions by their score"""
         validator = SolutionValidator()
         scored_solutions = []
         
-        for solution in solutions:
+        if debug_mode:
+            debug_container.write("\nStarting solution ranking...")
+            debug_container.write(f"Total solutions to rank: {len(solutions)}")
+        
+        for i, solution in enumerate(solutions):
+            if debug_mode:
+                debug_container.write(f"\nRanking solution {i+1}/{len(solutions)}")
+            
             simulation = FeedingSimulation(solution)
             success, feeding_history = simulation.simulate_feeding_round()
             
             if success:
                 score = validator.get_solution_score(solution, feeding_history)
                 scored_solutions.append((solution, score))
+                
+                if debug_mode:
+                    debug_container.write(f"Solution {i+1} score: {score:.2f}")
+                    debug_container.write("Feeding history:")
+                    for feed in feeding_history:
+                        debug_container.write(f"- {feed['predator']} ate {feed['calories_consumed']} calories from {feed['prey']}")
+            else:
+                if debug_mode:
+                    debug_container.write(f"Solution {i+1} failed feeding simulation")
         
-        return sorted(scored_solutions, key=lambda x: x[1], reverse=True)
+        ranked_solutions = sorted(scored_solutions, key=lambda x: x[1], reverse=True)
+        
+        if debug_mode:
+            debug_container.write("\nRanking complete.")
+            debug_container.write(f"Top score: {ranked_solutions[0][1] if ranked_solutions else 0}")
+        
+        return ranked_solutions

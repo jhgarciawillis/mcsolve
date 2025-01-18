@@ -56,6 +56,9 @@ def generate_scenario_page():
 def find_solutions_page():
     st.header("Find Solutions")
     
+    # Add debug logging checkbox
+    debug_mode = st.sidebar.checkbox("Enable Debug Mode", value=False)
+    
     col1, col2 = st.columns(2)
     
     with col1:
@@ -74,6 +77,8 @@ def find_solutions_page():
         uploaded_file = st.file_uploader("Upload Scenario", type="xlsx")
         
     if uploaded_file is not None:
+        st.write("Processing uploaded file...")
+        
         # Save uploaded file temporarily
         temp_path = "temp/uploaded_scenario.xlsx"
         with open(temp_path, "wb") as f:
@@ -88,26 +93,57 @@ def find_solutions_page():
             return
         
         try:
+            if debug_mode:
+                st.write("Reading scenario from Excel...")
             ecosystem = ExcelHandler.read_scenario(temp_path)
             
+            if debug_mode:
+                st.write(f"Found {len(ecosystem.species)} species in scenario")
+                st.write(f"Producers: {len(ecosystem.get_producers())}")
+                st.write(f"Animals: {len(ecosystem.get_animals())}")
+            
             if st.button("Generate Solutions"):
+                debug_container = st.empty()
+                
                 with st.spinner("Generating solutions..."):
-                    solutions = SolutionGenerator.generate_all_solutions(ecosystem)
-                    ranked_solutions = SolutionGenerator.rank_solutions(solutions)
+                    if debug_mode:
+                        solutions = SolutionGenerator.generate_all_solutions(ecosystem, 
+                                                                          debug_container=debug_container,
+                                                                          debug_mode=True)
+                        ranked_solutions = SolutionGenerator.rank_solutions(solutions, 
+                                                                         debug_container=debug_container,
+                                                                         debug_mode=True)
+                    else:
+                        solutions = SolutionGenerator.generate_all_solutions(ecosystem)
+                        ranked_solutions = SolutionGenerator.rank_solutions(solutions)
                     
                     st.write(f"Found {len(ranked_solutions)} valid solutions")
                     
                     for i, (solution, score) in enumerate(ranked_solutions[:10]):
                         with st.expander(f"Solution {i+1} (Score: {score:.2f})"):
+                            if debug_mode:
+                                st.write("Solution Details:")
+                                st.write(f"Producers: {len([s for s in solution if s.species_type == SpeciesType.PRODUCER])}")
+                                st.write(f"Animals: {len([s for s in solution if s.species_type == SpeciesType.ANIMAL])}")
+                            
                             df = pd.DataFrame([{
                                 'ID': s.id,
                                 'Name': s.name,
                                 'Type': s.species_type.value,
                                 'Calories Provided': s.calories_provided,
                                 'Calories Needed': s.calories_needed,
-                                'Bin': s.bin
+                                'Bin': s.bin,
+                                'Predators': ', '.join(s.predators),
+                                'Prey': ', '.join(s.prey)
                             } for s in solution])
                             st.dataframe(df)
+                            
+                            if debug_mode:
+                                # Display feeding relationships
+                                st.write("Feeding Relationships:")
+                                for species in solution:
+                                    if species.species_type == SpeciesType.ANIMAL:
+                                        st.write(f"{species.name} eats: {', '.join(species.prey)}")
                             
                             # Add solution download option
                             temp_solution_file = f"temp/solution_{i+1}.xlsx"
@@ -123,6 +159,8 @@ def find_solutions_page():
                             
         except Exception as e:
             st.error(f"Error processing file: {str(e)}")
+            if debug_mode:
+                st.exception(e)
 
 def check_solution_page():
     st.header("Check Solution")
