@@ -3,8 +3,13 @@ from typing import List, Dict, Tuple
 from pathlib import Path
 from species import Species, SpeciesType, Ecosystem
 from constants import (
-    SPECIES_COLUMNS, MIN_CALORIES, MAX_CALORIES, CALORIE_STEP,
-    MAX_PREDATORS, MAX_PREY
+    SPECIES_COLUMNS,
+    MIN_CALORIES,
+    MAX_CALORIES,
+    CALORIE_STEP,
+    MAX_PREDATORS,
+    MAX_PREY,
+    BINS
 )
 
 class ExcelHandler:

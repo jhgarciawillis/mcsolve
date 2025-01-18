@@ -2,10 +2,12 @@ from typing import List, Dict, Tuple, Optional
 from species import Species, SpeciesType, Ecosystem
 from ecosystem import FeedingSimulation
 from constants import (
-   TOTAL_PRODUCERS_NEEDED,
-   TOTAL_ANIMALS_NEEDED,
-   ERROR_MESSAGES,
-   SCORING_WEIGHTS
+    TOTAL_PRODUCERS_NEEDED,
+    TOTAL_ANIMALS_NEEDED,
+    ERROR_MESSAGES,
+    SCORING_WEIGHTS,
+    MAX_PREDATORS,
+    MAX_PREY
 )
 
 class SolutionValidator:

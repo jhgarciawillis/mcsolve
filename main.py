@@ -5,6 +5,7 @@ from species import Species, SpeciesType, Ecosystem
 from generator import ScenarioGenerator, SolutionGenerator
 from validator import SolutionValidator
 from excel_handler import ExcelHandler
+from ecosystem import FeedingSimulation
 from constants import *
 
 st.set_page_config(
