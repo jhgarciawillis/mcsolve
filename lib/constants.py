@@ -1,3 +1,5 @@
+from typing import Dict
+
 # Game Constants
 BINS = ['A', 'B', 'C']
 PRODUCERS_PER_BIN = 3
