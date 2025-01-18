@@ -1,6 +1,8 @@
+from typing import List, Set, Dict, Tuple
 import random
-from typing import List, Set, Dict
 from .species import Species, SpeciesType, Ecosystem
+from .validator import SolutionValidator
+from .ecosystem import FeedingSimulation
 from .constants import BINS, PRODUCERS_PER_BIN, ANIMALS_PER_BIN
 
 class ScenarioGenerator:
@@ -84,6 +86,7 @@ class ScenarioGenerator:
                     animal.food_sources.add(prey.id)
                     prey.eaten_by.add(animal.id)
 
+
 class SolutionGenerator:
     @staticmethod
     def generate_all_solutions(ecosystem: Ecosystem) -> List[List[Species]]:
@@ -93,6 +96,7 @@ class SolutionGenerator:
         all_solutions = []
         producers = ecosystem.get_producers()
         animals = ecosystem.get_animals()
+        validator = SolutionValidator()
         
         # Generate all possible combinations of 3 producers and 5 animals
         for producer_combo in combinations(producers, 3):
@@ -100,7 +104,6 @@ class SolutionGenerator:
                 solution = list(producer_combo) + list(animal_combo)
                 
                 # Validate the solution
-                validator = SolutionValidator()
                 is_valid, _ = validator.validate_solution(ecosystem, solution)
                 
                 if is_valid:
@@ -123,3 +126,14 @@ class SolutionGenerator:
                 scored_solutions.append((solution, score))
         
         return sorted(scored_solutions, key=lambda x: x[1], reverse=True)
+
+    @staticmethod
+    def get_best_solution(ecosystem: Ecosystem) -> Tuple[List[Species], float]:
+        """Get the highest scoring valid solution"""
+        solutions = SolutionGenerator.generate_all_solutions(ecosystem)
+        ranked_solutions = SolutionGenerator.rank_solutions(solutions)
+        
+        if not ranked_solutions:
+            raise ValueError("No valid solutions found")
+            
+        return ranked_solutions[0]
