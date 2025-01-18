@@ -66,6 +66,14 @@ class Species:
         """Check if this species can eat the prey"""
         return prey_id in self.prey
 
+    def get_all_prey_ids(self) -> List[str]:
+        """Get list of all prey IDs"""
+        return self.prey.copy()
+
+    def get_all_predator_ids(self) -> List[str]:
+        """Get list of all predator IDs"""
+        return self.predators.copy()
+
     def __hash__(self):
         return hash(self.id)
 
@@ -73,6 +81,16 @@ class Species:
         if not isinstance(other, Species):
             return False
         return self.id == other.id
+
+    @property
+    def food_sources(self) -> List[str]:
+        """Compatibility property for old code"""
+        return self.prey
+
+    @property
+    def eaten_by(self) -> List[str]:
+        """Compatibility property for old code"""
+        return self.predators
 
 class Ecosystem:
     def __init__(self, species: List[Species]):

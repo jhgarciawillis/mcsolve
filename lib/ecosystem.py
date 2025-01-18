@@ -1,20 +1,21 @@
 from typing import List, Dict, Tuple, Set
 from dataclasses import dataclass
 from .species import Species, SpeciesType, Ecosystem
-from .constants import BINS
 
 class FeedingSimulation:
     def __init__(self, species: List[Species]):
+        # Sort species by calories provided (highest first)
         self.species = sorted(species, key=lambda x: x.calories_provided, reverse=True)
         self.calories_remaining = {s.id: s.calories_provided for s in species}
-        self.has_eaten = set()
-        self.feeding_history = []
+        self.has_eaten = set()  # Track which species have already fed
+        self.feeding_history = []  # Record of all feeding actions
 
     def simulate_feeding_round(self) -> Tuple[bool, List[dict]]:
         """
         Simulates one complete feeding round for all species
         Returns: (success, feeding_history)
         """
+        # Process species in order of highest calories provided
         for species in self.species:
             if species.species_type == SpeciesType.PRODUCER:
                 continue
@@ -32,24 +33,23 @@ class FeedingSimulation:
         if species.id in self.has_eaten:
             return True
             
-        # Get available food sources sorted by calories
-        available_food = self._get_available_food_sources(species)
-        if not available_food:
+        # Get available prey sorted by calories
+        available_prey = self._get_available_prey(species)
+        if not available_prey:
             return False
 
-        # Calculate calories needed from each source
-        calories_needed = species.calories_needed
-        if not self._distribute_feeding(species, available_food, calories_needed):
+        # Attempt to obtain required calories
+        if not self._distribute_feeding(species, available_prey, species.calories_needed):
             return False
 
         self.has_eaten.add(species.id)
         return True
 
-    def _get_available_food_sources(self, species: Species) -> List[Species]:
-        """Get all available food sources for a species, sorted by remaining calories"""
+    def _get_available_prey(self, species: Species) -> List[Species]:
+        """Get all available prey for a species, sorted by remaining calories"""
         return sorted(
             [s for s in self.species 
-             if s.id in species.food_sources and self.calories_remaining[s.id] > 0],
+             if s.id in species.prey and self.calories_remaining[s.id] > 0],
             key=lambda x: self.calories_remaining[x.id],
             reverse=True
         )
@@ -77,9 +77,10 @@ class FeedingSimulation:
                 calories_groups[remaining] = []
             calories_groups[remaining].append(p)
         
-        # Handle equal distribution for same-calorie groups
+        # Process groups in descending order of calories
         for calories, group in sorted(calories_groups.items(), reverse=True):
             if len(group) > 1:
+                # Multiple prey with same calories - distribute evenly
                 calories_per_prey = min(calories, calories_still_needed / len(group))
                 for p in group:
                     if self.calories_remaining[p.id] < calories_per_prey:
@@ -94,7 +95,7 @@ class FeedingSimulation:
                         "calories_consumed": calories_per_prey
                     })
             else:
-                # Single prey in this calorie group
+                # Single prey - take what's needed
                 p = group[0]
                 calories_to_take = min(self.calories_remaining[p.id], calories_still_needed)
                 self.calories_remaining[p.id] -= calories_to_take
@@ -113,15 +114,15 @@ class FeedingSimulation:
 
     def get_remaining_calories(self) -> Dict[str, int]:
         """Get remaining calories for all species"""
-        return self.calories_remaining
+        return self.calories_remaining.copy()
 
     def get_feeding_sequence(self) -> List[Dict]:
         """Get the complete feeding history"""
-        return self.feeding_history
+        return self.feeding_history.copy()
 
     def validate_ecosystem_stability(self) -> Tuple[bool, List[str]]:
         """
-        Validate if the ecosystem is stable after feeding
+        Validate if the ecosystem is stable
         Returns: (is_stable, list_of_issues)
         """
         issues = []
@@ -139,3 +140,13 @@ class FeedingSimulation:
                 issues.append(f"{species.name} was completely depleted")
         
         return len(issues) == 0, issues
+
+    def get_feeding_stats(self) -> Dict:
+        """Get statistics about the feeding simulation"""
+        return {
+            'total_species': len(self.species),
+            'species_fed': len(self.has_eaten),
+            'total_calories_consumed': sum(f['calories_consumed'] for f in self.feeding_history),
+            'feeding_interactions': len(self.feeding_history),
+            'remaining_calories': self.calories_remaining.copy()
+        }
