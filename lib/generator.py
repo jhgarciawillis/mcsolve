@@ -3,21 +3,25 @@ import random
 from .species import Species, SpeciesType, Ecosystem
 from .validator import SolutionValidator
 from .ecosystem import FeedingSimulation
-from .constants import BINS, PRODUCERS_PER_BIN, ANIMALS_PER_BIN
+from .constants import (
+    BINS, PRODUCERS_PER_BIN, ANIMALS_PER_BIN,
+    MIN_CALORIES, MAX_CALORIES, CALORIE_STEP,
+    TARGET_PREDATORS, TARGET_PREY
+)
 
 class ScenarioGenerator:
     def __init__(self):
         self.calorie_ranges = {
-            'producer': (1000, 6000),
+            'producer': (MIN_CALORIES, MAX_CALORIES),
             'animal': {
-                'provided': (1000, 6000),
-                'needed': (1000, 6000)
+                'provided': (MIN_CALORIES, MAX_CALORIES),
+                'needed': (MIN_CALORIES, MAX_CALORIES)
             }
         }
 
     def _round_to_50(self, number: int) -> int:
         """Round a number to the nearest 50"""
-        return round(number / 50) * 50
+        return round(number / CALORIE_STEP) * CALORIE_STEP
 
     def generate_scenario(self) -> Ecosystem:
         """Generate a complete scenario with valid species across all bins"""
@@ -30,7 +34,7 @@ class ScenarioGenerator:
             
         # Generate animals for each bin
         for bin_id in BINS:
-            animals = self._generate_animals(bin_id, all_species)
+            animals = self._generate_animals(bin_id)
             all_species.extend(animals)
             
         # Establish food chain relationships
@@ -48,61 +52,73 @@ class ScenarioGenerator:
                 name=f"Producer {bin_id}{i+1}",
                 species_type=SpeciesType.PRODUCER,
                 calories_provided=calories,
-                calories_needed=0,  # Producers don't need calories
-                bin=bin_id,
-                food_sources=set(),  # Producers have no food sources
-                eaten_by=set()
+                calories_needed=0,
+                bin=bin_id
             )
             producers.append(producer)
         return producers
 
-    def _generate_animals(self, bin_id: str, existing_species: List[Species]) -> List[Species]:
+    def _generate_animals(self, bin_id: str) -> List[Species]:
         """Generate animals for a specific bin"""
         animals = []
         for i in range(ANIMALS_PER_BIN):
-            calories_provided = self._round_to_50(random.randint(*self.calorie_ranges['animal']['provided']))
-            calories_needed = self._round_to_50(random.randint(*self.calorie_ranges['animal']['needed']))
+            calories_provided = self._round_to_50(
+                random.randint(*self.calorie_ranges['animal']['provided'])
+            )
+            calories_needed = self._round_to_50(
+                random.randint(*self.calorie_ranges['animal']['needed'])
+            )
             animal = Species(
                 id=f"A_{bin_id}_{i+1}",
                 name=f"Animal {bin_id}{i+1}",
                 species_type=SpeciesType.ANIMAL,
                 calories_provided=calories_provided,
                 calories_needed=calories_needed,
-                bin=bin_id,
-                food_sources=set(),
-                eaten_by=set()
+                bin=bin_id
             )
             animals.append(animal)
         return animals
 
     def _establish_relationships(self, species: List[Species]):
         """Establish food chain relationships between species"""
-        producers = [s for s in species if s.species_type == SpeciesType.PRODUCER]
-        animals = [s for s in species if s.species_type == SpeciesType.ANIMAL]
-        
-        # Ensure producers have no food sources and no calories needed
-        for producer in producers:
-            producer.food_sources = set()
-            producer.calories_needed = 0
-        
-        for animal in animals:
-            # Each animal has 40% chance to eat each producer in its bin
-            for producer in producers:
-                if producer.bin == animal.bin and random.random() < 0.4:
-                    animal.food_sources.add(producer.id)
-                    producer.eaten_by.add(animal.id)
+        species_by_bin = {}
+        for s in species:
+            if s.bin not in species_by_bin:
+                species_by_bin[s.bin] = {'producers': [], 'animals': []}
+            if s.species_type == SpeciesType.PRODUCER:
+                species_by_bin[s.bin]['producers'].append(s)
+            else:
+                species_by_bin[s.bin]['animals'].append(s)
+
+        # For each bin
+        for bin_id in BINS:
+            bin_species = species_by_bin[bin_id]
             
-            # Each animal has 30% chance to eat each smaller animal in its bin
-            potential_prey = [a for a in animals 
-                            if a.bin == animal.bin 
-                            and a.calories_provided < animal.calories_provided
-                            and a.id != animal.id]  # Prevent self-predation
-            
-            # Allow multiple prey selection
-            for prey in potential_prey:
-                if random.random() < 0.3:
-                    animal.food_sources.add(prey.id)
-                    prey.eaten_by.add(animal.id)
+            # Assign predators to producers (2-3 predators each)
+            for producer in bin_species['producers']:
+                num_predators = random.randint(2, 3)
+                potential_predators = bin_species['animals'].copy()
+                random.shuffle(potential_predators)
+                
+                for predator in potential_predators[:num_predators]:
+                    predator.add_prey(producer.id)
+                    producer.add_predator(predator.id)
+
+            # Assign prey and predators to animals
+            for animal in bin_species['animals']:
+                # 2-3 prey for each animal
+                potential_prey = ([s for s in bin_species['animals'] 
+                                if s.calories_provided < animal.calories_provided
+                                and s.id != animal.id] +
+                               bin_species['producers'])
+                
+                if potential_prey:
+                    num_prey = min(random.randint(2, 3), len(potential_prey))
+                    selected_prey = random.sample(potential_prey, num_prey)
+                    
+                    for prey in selected_prey:
+                        animal.add_prey(prey.id)
+                        prey.add_predator(animal.id)
 
 
 class SolutionGenerator:
@@ -116,14 +132,10 @@ class SolutionGenerator:
         animals = ecosystem.get_animals()
         validator = SolutionValidator()
         
-        # Generate all possible combinations of 3 producers and 5 animals
         for producer_combo in combinations(producers, 3):
             for animal_combo in combinations(animals, 5):
                 solution = list(producer_combo) + list(animal_combo)
-                
-                # Validate the solution
                 is_valid, _ = validator.validate_solution(ecosystem, solution)
-                
                 if is_valid:
                     all_solutions.append(solution)
         
@@ -144,14 +156,3 @@ class SolutionGenerator:
                 scored_solutions.append((solution, score))
         
         return sorted(scored_solutions, key=lambda x: x[1], reverse=True)
-
-    @staticmethod
-    def get_best_solution(ecosystem: Ecosystem) -> Tuple[List[Species], float]:
-        """Get the highest scoring valid solution"""
-        solutions = SolutionGenerator.generate_all_solutions(ecosystem)
-        ranked_solutions = SolutionGenerator.rank_solutions(solutions)
-        
-        if not ranked_solutions:
-            raise ValueError("No valid solutions found")
-            
-        return ranked_solutions[0]

@@ -2,62 +2,77 @@ import pandas as pd
 from typing import List, Dict, Tuple
 from pathlib import Path
 from .species import Species, SpeciesType, Ecosystem
-from .constants import REQUIRED_SHEETS, SPECIES_COLUMNS, RELATIONSHIP_COLUMNS
+from .constants import (
+    SPECIES_COLUMNS, MIN_CALORIES, MAX_CALORIES, CALORIE_STEP,
+    MAX_PREDATORS, MAX_PREY
+)
 
 class ExcelHandler:
     @staticmethod
     def create_template(file_path: str):
         """Create an empty template Excel file"""
+        df = pd.DataFrame(columns=SPECIES_COLUMNS)
+        
         with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
-            # Species sheet
-            species_df = pd.DataFrame(columns=SPECIES_COLUMNS)
-            species_df.to_excel(writer, sheet_name='Species', index=False)
+            df.to_excel(writer, sheet_name='Species', index=False)
             
-            # Relationships sheet
-            relationships_df = pd.DataFrame(columns=RELATIONSHIP_COLUMNS)
-            relationships_df.to_excel(writer, sheet_name='Relationships', index=False)
+            # Add data validation
+            workbook = writer.book
+            worksheet = writer.sheets['Species']
+            
+            # Add type dropdown
+            type_validation = {
+                'type': 'list',
+                'source': ['producer', 'animal']
+            }
+            worksheet.data_validation('C2:C1048576', type_validation)
+            
+            # Add bin dropdown
+            bin_validation = {
+                'type': 'list',
+                'source': ['A', 'B', 'C']
+            }
+            worksheet.data_validation('F2:F1048576', bin_validation)
 
     @staticmethod
     def validate_excel_format(file_path: str) -> Tuple[bool, List[str]]:
         """Validate if Excel file matches required format"""
         errors = []
         try:
-            xlsx = pd.ExcelFile(file_path)
+            df = pd.read_excel(file_path)
             
-            # Check required sheets
-            missing_sheets = set(REQUIRED_SHEETS) - set(xlsx.sheet_names)
-            if missing_sheets:
-                errors.append(f"Missing sheets: {missing_sheets}")
-                return False, errors
-            
-            # Check Species sheet
-            species_df = pd.read_excel(xlsx, 'Species')
-            missing_cols = set(SPECIES_COLUMNS) - set(species_df.columns)
+            # Check required columns
+            missing_cols = set(SPECIES_COLUMNS) - set(df.columns)
             if missing_cols:
-                errors.append(f"Missing columns in Species sheet: {missing_cols}")
-            
-            # Check Relationships sheet
-            rel_df = pd.read_excel(xlsx, 'Relationships')
-            missing_cols = set(RELATIONSHIP_COLUMNS) - set(rel_df.columns)
-            if missing_cols:
-                errors.append(f"Missing columns in Relationships sheet: {missing_cols}")
+                errors.append(f"Missing columns: {missing_cols}")
             
             # Validate data types
             try:
-                species_df['calories_provided'] = species_df['calories_provided'].astype(int)
-                species_df['calories_needed'] = species_df['calories_needed'].astype(int)
+                df['calories_provided'] = df['calories_provided'].astype(int)
+                df['calories_needed'] = df['calories_needed'].astype(int)
+                
+                # Validate calorie ranges
+                invalid_calories = df[
+                    (df['calories_provided'] % CALORIE_STEP != 0) |
+                    ((df['calories_provided'] != 0) & 
+                     ((df['calories_provided'] < MIN_CALORIES) | 
+                      (df['calories_provided'] > MAX_CALORIES)))
+                ]
+                if not invalid_calories.empty:
+                    errors.append("Invalid calorie values found")
+                
             except ValueError:
                 errors.append("Calories must be integer values")
             
-            # Validate relationships reference valid species
-            species_ids = set(species_df['id'])
-            invalid_predators = set(rel_df['predator_id']) - species_ids
-            invalid_prey = set(rel_df['prey_id']) - species_ids
+            # Validate types
+            invalid_types = df[~df['type'].isin(['producer', 'animal'])]
+            if not invalid_types.empty:
+                errors.append("Invalid species types found")
             
-            if invalid_predators:
-                errors.append(f"Invalid predator IDs: {invalid_predators}")
-            if invalid_prey:
-                errors.append(f"Invalid prey IDs: {invalid_prey}")
+            # Validate bins
+            invalid_bins = df[~df['bin'].isin(['A', 'B', 'C'])]
+            if not invalid_bins.empty:
+                errors.append("Invalid bin values found")
             
             return len(errors) == 0, errors
             
@@ -72,38 +87,30 @@ class ExcelHandler:
         if not is_valid:
             raise ValueError(f"Invalid Excel format: {'; '.join(errors)}")
         
-        # Read both sheets
-        species_df = pd.read_excel(file_path, 'Species')
-        relationships_df = pd.read_excel(file_path, 'Relationships')
-        
-        # Build relationships dictionary
-        relationships = {}
-        for _, row in relationships_df.iterrows():
-            predator_id = row['predator_id']
-            prey_id = row['prey_id']
-            if predator_id not in relationships:
-                relationships[predator_id] = {'food_sources': set(), 'eaten_by': set()}
-            if prey_id not in relationships:
-                relationships[prey_id] = {'food_sources': set(), 'eaten_by': set()}
-            
-            relationships[predator_id]['food_sources'].add(prey_id)
-            relationships[prey_id]['eaten_by'].add(predator_id)
-        
-        # Create species objects
+        df = pd.read_excel(file_path)
         species_list = []
-        for _, row in species_df.iterrows():
-            species_id = row['id']
-            rels = relationships.get(species_id, {'food_sources': set(), 'eaten_by': set()})
+        
+        for _, row in df.iterrows():
+            # Get predators and prey, filtering out empty values
+            predators = [
+                str(row[f'predator_{i}']) for i in range(1, MAX_PREDATORS + 1)
+                if f'predator_{i}' in row and pd.notna(row[f'predator_{i}'])
+            ]
+            
+            prey = [
+                str(row[f'prey_{i}']) for i in range(1, MAX_PREY + 1)
+                if f'prey_{i}' in row and pd.notna(row[f'prey_{i}'])
+            ]
             
             species = Species(
-                id=species_id,
-                name=row['name'],
+                id=str(row['id']),
+                name=str(row['name']),
                 species_type=SpeciesType(row['type']),
                 calories_provided=int(row['calories_provided']),
                 calories_needed=int(row['calories_needed']),
-                bin=row['bin'],
-                eaten_by=rels['eaten_by'],
-                food_sources=rels['food_sources']
+                bin=str(row['bin']),
+                predators=predators,
+                prey=prey
             )
             species_list.append(species)
         
@@ -112,54 +119,31 @@ class ExcelHandler:
     @staticmethod
     def write_scenario(ecosystem: Ecosystem, file_path: str):
         """Write ecosystem to Excel file"""
-        # Create Species data
-        species_data = []
-        relationships_data = []
+        data = []
         
         for species in ecosystem.species:
-            species_data.append({
+            # Pad predators and prey lists to fixed length
+            predators = species.predators + [''] * (MAX_PREDATORS - len(species.predators))
+            prey = species.prey + [''] * (MAX_PREY - len(species.prey))
+            
+            row = {
                 'id': species.id,
                 'name': species.name,
                 'type': species.species_type.value,
                 'calories_provided': species.calories_provided,
                 'calories_needed': species.calories_needed,
                 'bin': species.bin
-            })
+            }
             
-            # Create relationship data
-            for food_source in species.food_sources:
-                relationships_data.append({
-                    'predator_id': species.id,
-                    'prey_id': food_source
-                })
+            # Add predator columns
+            for i, pred in enumerate(predators, 1):
+                row[f'predator_{i}'] = pred
+                
+            # Add prey columns
+            for i, pr in enumerate(prey, 1):
+                row[f'prey_{i}'] = pr
+            
+            data.append(row)
         
-        # Write to Excel
-        with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
-            pd.DataFrame(species_data).to_excel(writer, sheet_name='Species', index=False)
-            pd.DataFrame(relationships_data).to_excel(writer, sheet_name='Relationships', index=False)
-
-    @staticmethod
-    def write_solution(solution: List[Species], feeding_history: List[Dict], file_path: str):
-        """Write solution and feeding history to Excel file"""
-        species_data = [{
-            'id': s.id,
-            'name': s.name,
-            'type': s.species_type.value,
-            'calories_provided': s.calories_provided,
-            'calories_needed': s.calories_needed,
-            'bin': s.bin
-        } for s in solution]
-        
-        relationships_data = []
-        for species in solution:
-            for food_source in species.food_sources:
-                relationships_data.append({
-                    'predator_id': species.id,
-                    'prey_id': food_source
-                })
-        
-        with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
-            pd.DataFrame(species_data).to_excel(writer, sheet_name='Species', index=False)
-            pd.DataFrame(relationships_data).to_excel(writer, sheet_name='Relationships', index=False)
-            if feeding_history:
-                pd.DataFrame(feeding_history).to_excel(writer, sheet_name='Feeding_History', index=False)
+        df = pd.DataFrame(data)
+        df.to_excel(file_path, index=False, sheet_name='Species')
