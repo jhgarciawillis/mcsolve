@@ -1,222 +1,192 @@
-from typing import List, Dict, Tuple, Set
+from typing import List, Dict, Tuple, Set, Optional
 from dataclasses import dataclass
 from species import Species, SpeciesType, Ecosystem
 from constants import (
-   MIN_CALORIES,
-   MAX_CALORIES,
-   CALORIE_STEP,
-   TOTAL_PRODUCERS_NEEDED,
-   TOTAL_ANIMALS_NEEDED
+    MIN_CALORIES,
+    MAX_CALORIES,
+    CALORIE_STEP,
+    TOTAL_PRODUCERS_NEEDED,
+    TOTAL_ANIMALS_NEEDED
 )
 
 class FeedingSimulation:
-   def __init__(self, species: List[Species], debug_container=None, debug_mode=False):
-       # Create copies of species to avoid modifying originals
-       self.species = [s.create_copy() for s in species]
-       # Sort species by calories provided (highest first)
-       self.species.sort(key=lambda x: x.calories_provided, reverse=True)
-       self.calories_remaining = {s.id: s.calories_provided for s in self.species}
-       self.has_eaten = set()
-       self.feeding_history = []
-       self.debug_container = debug_container
-       self.debug_mode = debug_mode
-       
-       if self.debug_mode:
-           self.debug_container.write("\nInitializing Feeding Simulation:")
-           self.debug_container.write(f"Total species: {len(species)}")
-           self.debug_container.write("Initial calories:")
-           for s in self.species:
-               self.debug_container.write(f"- {s.name}: {self.calories_remaining[s.id]}")
+    def __init__(self, species: List[Species], debug_container=None, debug_mode=False):
+        self.species = species
+        self.calories_remaining = {s.id: s.calories_provided for s in species}
+        self.has_eaten = set()  # Track which species have fed
+        self.feeding_history = []
+        self.debug_container = debug_container
+        self.debug_mode = debug_mode
+        
+        if self.debug_mode:
+            self.debug_container.write("\nInitializing Feeding Simulation:")
+            self.debug_container.write(f"Total species: {len(species)}")
+            self.debug_container.write("Initial calories:")
+            for s in self.species:
+                self.debug_container.write(f"- {s.name}: {self.calories_remaining[s.id]}")
 
-   def simulate_feeding_round(self) -> Tuple[bool, List[dict]]:
-       """Simulates one complete feeding round"""
-       if self.debug_mode:
-           self.debug_container.write("\nStarting feeding simulation...")
-       
-       # Process species in order of highest calories provided
-       for species in self.species:
-           if species.species_type == SpeciesType.PRODUCER:
-               if self.debug_mode:
-                   self.debug_container.write(f"\nSkipping producer: {species.name}")
-               continue
-           
-           if self.debug_mode:
-               self.debug_container.write(f"\nProcessing: {species.name}")
-               self.debug_container.write(f"Calories needed: {species.calories_needed}")
-               self.debug_container.write(f"Available prey: {[s.name for s in self._get_available_prey(species)]}")
-           
-           if not self._feed_species(species):
-               if self.debug_mode:
-                   self.debug_container.write(f"Failed to feed {species.name}")
-                   self.debug_container.write("Current calorie state:")
-                   for s in self.species:
-                       self.debug_container.write(f"- {s.name}: {self.calories_remaining[s.id]}")
-               return False, self.feeding_history
-           
-           # Check if any species was depleted
-           for s in self.species:
-               if self.calories_remaining[s.id] <= 0:
-                   if self.debug_mode:
-                       self.debug_container.write(f"{s.name} has been depleted - solution invalid")
-                   return False, self.feeding_history
-       
-       if self.debug_mode:
-           self.debug_container.write("\nFeeding simulation completed successfully")
-           self.debug_container.write("Final calorie state:")
-           for s in self.species:
-               self.debug_container.write(f"- {s.name}: {self.calories_remaining[s.id]}")
-       
-       return True, self.feeding_history
+    def simulate_feeding_round(self) -> Tuple[bool, List[dict]]:
+        """Simulates one complete feeding round"""
+        if self.debug_mode:
+            self.debug_container.write("\nStarting feeding simulation...")
 
-   def _feed_species(self, species: Species) -> bool:
-       """Feed a single species"""
-       if species.id in self.has_eaten:
-           if self.debug_mode:
-               self.debug_container.write(f"{species.name} has already eaten")
-           return True
-       
-       available_prey = self._get_available_prey(species)
-       if not available_prey:
-           if self.debug_mode:
-               self.debug_container.write(f"No available prey for {species.name}")
-           return False
-       
-       # Calculate total available calories
-       total_available = sum(self.calories_remaining[p.id] - 1 for p in available_prey)  # Leave 1 calorie per prey
-       if total_available < species.calories_needed:
-           if self.debug_mode:
-               self.debug_container.write(
-                   f"Insufficient calories available: {total_available} < {species.calories_needed}"
-               )
-           return False
+        while True:
+            # Find next species with highest remaining calories that hasn't eaten yet
+            next_predator = self._get_next_predator()
+            if not next_predator:
+                break  # No more species that can feed
+                
+            if self.debug_mode:
+                self.debug_container.write(f"\nNext predator: {next_predator.name}")
+                self.debug_container.write(f"Current calories: {self.calories_remaining[next_predator.id]}")
+                self.debug_container.write(f"Calories needed: {next_predator.calories_needed}")
+            
+            if not self._feed_species(next_predator):
+                if self.debug_mode:
+                    self.debug_container.write(f"Failed to feed {next_predator.name}")
+                    self.debug_container.write("Current calorie state:")
+                    for s in self.species:
+                        self.debug_container.write(f"- {s.name}: {self.calories_remaining[s.id]}")
+                return False, self.feeding_history
 
-       if not self._distribute_feeding(species, available_prey, species.calories_needed):
-           if self.debug_mode:
-               self.debug_container.write(f"Failed to distribute feeding for {species.name}")
-           return False
+        # Check if any species that needs to eat hasn't eaten
+        for species in self.species:
+            if species.species_type == SpeciesType.ANIMAL and species.id not in self.has_eaten:
+                if self.debug_mode:
+                    self.debug_container.write(f"{species.name} failed to eat")
+                return False, self.feeding_history
+        
+        if self.debug_mode:
+            self.debug_container.write("\nFeeding simulation completed successfully")
+            self.debug_container.write("Final calorie state:")
+            for s in self.species:
+                self.debug_container.write(f"- {s.name}: {self.calories_remaining[s.id]}")
+        
+        return True, self.feeding_history
 
-       self.has_eaten.add(species.id)
-       return True
+    def _get_next_predator(self) -> Optional[Species]:
+        """Get next species that should feed (highest remaining calories that hasn't eaten)"""
+        available_predators = [s for s in self.species 
+                             if s.species_type == SpeciesType.ANIMAL 
+                             and s.id not in self.has_eaten]
+        if not available_predators:
+            return None
+        
+        return max(available_predators, key=lambda x: self.calories_remaining[x.id])
 
-   def _distribute_feeding(self, predator: Species, prey: List[Species], calories_needed: int) -> bool:
-       """Distribute feeding across available prey"""
-       if not prey:
-           return False
-       
-       if self.debug_mode:
-           self.debug_container.write(f"\nDistributing feeding for {predator.name}")
-           self.debug_container.write(f"Calories needed: {calories_needed}")
-       
-       calories_still_needed = calories_needed
-       
-       # Group prey by available calories
-       calories_groups = {}
-       for p in prey:
-           remaining = self.calories_remaining[p.id]
-           if remaining not in calories_groups:
-               calories_groups[remaining] = []
-           calories_groups[remaining].append(p)
-       
-       # Process groups in descending order of calories
-       for calories, group in sorted(calories_groups.items(), reverse=True):
-           if len(group) > 1:
-               # Multiple prey with same calories - distribute evenly
-               calories_per_prey = min(calories - 1, calories_still_needed / len(group))  # Leave at least 1 calorie
-               
-               for p in group:
-                   if self.calories_remaining[p.id] <= calories_per_prey + 1:  # +1 to ensure we leave 1 calorie
-                       if self.debug_mode:
-                           self.debug_container.write(f"Would deplete {p.name} too much - skipping")
-                       continue
-                   
-                   self.calories_remaining[p.id] -= calories_per_prey
-                   calories_still_needed -= calories_per_prey
-                   
-                   self.feeding_history.append({
-                       "predator": predator.id,
-                       "prey": p.id,
-                       "calories_consumed": calories_per_prey
-                   })
-                   
-                   if self.debug_mode:
-                       self.debug_container.write(
-                           f"{predator.name} consumed {calories_per_prey} calories from {p.name} "
-                           f"({self.calories_remaining[p.id]} remaining)"
-                       )
-           else:
-               # Single prey - take what's needed but leave at least 1 calorie
-               p = group[0]
-               max_available = self.calories_remaining[p.id] - 1  # Leave at least 1 calorie
-               if max_available <= 0:
-                   if self.debug_mode:
-                       self.debug_container.write(f"Cannot take more calories from {p.name}")
-                   continue
-                   
-               calories_to_take = min(max_available, calories_still_needed)
-               self.calories_remaining[p.id] -= calories_to_take
-               calories_still_needed -= calories_to_take
-               
-               self.feeding_history.append({
-                   "predator": predator.id,
-                   "prey": p.id,
-                   "calories_consumed": calories_to_take
-               })
-               
-               if self.debug_mode:
-                   self.debug_container.write(
-                       f"{predator.name} consumed {calories_to_take} calories from {p.name} "
-                       f"({self.calories_remaining[p.id]} remaining)"
-                   )
-           
-           if calories_still_needed <= 0:
-               break
-       
-       if self.debug_mode:
-           self.debug_container.write(
-               f"Calories still needed after distribution: {calories_still_needed}"
-           )
-           
-       return calories_still_needed <= 0
+    def _feed_species(self, species: Species) -> bool:
+        """Feed a single species"""
+        if species.id in self.has_eaten:
+            if self.debug_mode:
+                self.debug_container.write(f"{species.name} has already eaten")
+            return True
+        
+        available_prey = self._get_available_prey(species)
+        if not available_prey:
+            if self.debug_mode:
+                self.debug_container.write(f"No available prey for {species.name}")
+            return False
+        
+        if not self._distribute_feeding(species, available_prey, species.calories_needed):
+            if self.debug_mode:
+                self.debug_container.write(f"Failed to distribute feeding for {species.name}")
+            return False
 
-   def _get_available_prey(self, species: Species) -> List[Species]:
-       """Get all available prey for a species, sorted by remaining calories"""
-       # Get prey that still have more than 1 calorie available
-       available = [s for s in self.species 
-                   if s.id in species.prey and self.calories_remaining[s.id] > 1]
-       
-       # Sort by remaining calories and same bin preference
-       return sorted(
-           available,
-           key=lambda x: (x.bin == species.bin, self.calories_remaining[x.id]),
-           reverse=True
-       )
+        self.has_eaten.add(species.id)
+        return True
 
-   def get_feeding_stats(self) -> Dict:
-       """Get statistics about the feeding simulation"""
-       return {
-           'total_species': len(self.species),
-           'species_fed': len(self.has_eaten),
-           'total_calories_consumed': sum(f['calories_consumed'] for f in self.feeding_history),
-           'feeding_interactions': len(self.feeding_history),
-           'remaining_calories': self.calories_remaining.copy(),
-           'average_consumption': sum(f['calories_consumed'] for f in self.feeding_history) / 
-                                len(self.feeding_history) if self.feeding_history else 0
-       }
+    def _distribute_feeding(self, predator: Species, prey: List[Species], calories_needed: int) -> bool:
+        """Distribute feeding across prey"""
+        if not prey:
+            return False
+        
+        if self.debug_mode:
+            self.debug_container.write(f"\nDistributing feeding for {predator.name}")
+            self.debug_container.write(f"Calories needed: {calories_needed}")
+        
+        # Group prey by available calories
+        calories_groups = {}
+        for p in prey:
+            remaining = self.calories_remaining[p.id]
+            if remaining not in calories_groups:
+                calories_groups[remaining] = []
+            calories_groups[remaining].append(p)
+        
+        # Take from highest calorie prey first
+        max_calories = max(calories_groups.keys())
+        max_calorie_prey = calories_groups[max_calories]
+        
+        if len(max_calorie_prey) > 1:
+            # Multiple prey with same calories - distribute evenly
+            calories_per_prey = calories_needed / len(max_calorie_prey)
+            for p in max_calorie_prey:
+                self.calories_remaining[p.id] -= calories_per_prey
+                self.feeding_history.append({
+                    "predator": predator.id,
+                    "prey": p.id,
+                    "calories_consumed": calories_per_prey
+                })
+                
+                if self.debug_mode:
+                    self.debug_container.write(
+                        f"Took {calories_per_prey} calories from {p.name} "
+                        f"({self.calories_remaining[p.id]} remaining)"
+                    )
+        else:
+            # Single prey - take all needed calories
+            prey = max_calorie_prey[0]
+            self.calories_remaining[prey.id] -= calories_needed
+            self.feeding_history.append({
+                "predator": predator.id,
+                "prey": prey.id,
+                "calories_consumed": calories_needed
+            })
+            
+            if self.debug_mode:
+                self.debug_container.write(
+                    f"Took {calories_needed} calories from {prey.name} "
+                    f"({self.calories_remaining[prey.id]} remaining)"
+                )
+            
+        return True
 
-   def get_species_feeding_summary(self, species_id: str) -> Dict:
-       """Get feeding summary for a specific species"""
-       consumed_as_prey = sum(
-           f['calories_consumed'] for f in self.feeding_history 
-           if f['prey'] == species_id
-       )
-       consumed_as_predator = sum(
-           f['calories_consumed'] for f in self.feeding_history 
-           if f['predator'] == species_id
-       )
-       return {
-           'consumed_as_prey': consumed_as_prey,
-           'consumed_as_predator': consumed_as_predator,
-           'remaining_calories': self.calories_remaining[species_id],
-           'interactions_as_prey': len([f for f in self.feeding_history if f['prey'] == species_id]),
-           'interactions_as_predator': len([f for f in self.feeding_history if f['predator'] == species_id])
-       }
+    def _get_available_prey(self, species: Species) -> List[Species]:
+        """Get all available prey for a species, sorted by current calories"""
+        available = [s for s in self.species 
+                    if s.id in species.prey and self.calories_remaining[s.id] > 0]
+        
+        return sorted(
+            available,
+            key=lambda x: self.calories_remaining[x.id],
+            reverse=True
+        )
+
+    def get_feeding_stats(self) -> Dict:
+        """Get statistics about the feeding simulation"""
+        return {
+            'total_species': len(self.species),
+            'species_fed': len(self.has_eaten),
+            'total_calories_consumed': sum(f['calories_consumed'] for f in self.feeding_history),
+            'feeding_interactions': len(self.feeding_history),
+            'remaining_calories': self.calories_remaining.copy(),
+            'average_consumption': sum(f['calories_consumed'] for f in self.feeding_history) / 
+                                 len(self.feeding_history) if self.feeding_history else 0
+        }
+
+    def get_species_feeding_summary(self, species_id: str) -> Dict:
+        """Get feeding summary for a specific species"""
+        consumed_as_prey = sum(
+            f['calories_consumed'] for f in self.feeding_history 
+            if f['prey'] == species_id
+        )
+        consumed_as_predator = sum(
+            f['calories_consumed'] for f in self.feeding_history 
+            if f['predator'] == species_id
+        )
+        return {
+            'consumed_as_prey': consumed_as_prey,
+            'consumed_as_predator': consumed_as_predator,
+            'remaining_calories': self.calories_remaining[species_id],
+            'interactions_as_prey': len([f for f in self.feeding_history if f['prey'] == species_id]),
+            'interactions_as_predator': len([f for f in self.feeding_history if f['predator'] == species_id])
+        }

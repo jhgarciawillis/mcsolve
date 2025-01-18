@@ -5,10 +5,7 @@ from constants import (
    TOTAL_PRODUCERS_NEEDED,
    TOTAL_ANIMALS_NEEDED,
    ERROR_MESSAGES,
-   SCORING_WEIGHTS,
-   MAX_PREDATORS,
-   MAX_PREY,
-   MIN_CALORIES
+   SCORING_WEIGHTS
 )
 
 class SolutionValidator:
@@ -55,10 +52,10 @@ class SolutionValidator:
            errors.append(ERROR_MESSAGES['invalid_bin'])
            return False, errors
 
-       # Validate relationships and structure
-       structural_errors = self._validate_solution_structure(solution)
-       if structural_errors:
-           errors.extend(structural_errors)
+       # Validate relationships
+       relationship_errors = self._validate_relationships(solution)
+       if relationship_errors:
+           errors.extend(relationship_errors)
            return False, errors
 
        # Simulate feeding rounds
@@ -72,26 +69,21 @@ class SolutionValidator:
            if self.debug_mode:
                self.debug_container.write("Feeding simulation failed")
            
-           # Check for depleted species
+           # Check for failures
            for species in solution:
-               remaining_calories = simulation.calories_remaining[species.id]
-               if remaining_calories <= MIN_CALORIES:
-                   errors.append(f"{species.name} would be depleted to {remaining_calories} calories")
-                   if self.debug_mode:
-                       self.debug_container.write(
-                           f"Species {species.name} would die (depleted to {remaining_calories} calories)"
-                       )
-               elif species.species_type == SpeciesType.ANIMAL and species.id not in simulation.has_eaten:
-                   errors.append(f"{species.name} couldn't obtain required calories of {species.calories_needed}")
-                   if self.debug_mode:
-                       self.debug_container.write(
-                           f"{species.name} needs {species.calories_needed} calories but couldn't obtain them"
-                       )
-
+               if species.species_type == SpeciesType.ANIMAL:
+                   # Check if species got its required calories
+                   if species.id not in simulation.has_eaten:
+                       errors.append(f"{species.name} couldn't obtain required calories")
+                       if self.debug_mode:
+                           self.debug_container.write(
+                               f"{species.name} needs {species.calories_needed} calories but couldn't feed"
+                           )
+           
        if self.debug_mode:
            if not errors:
                self.debug_container.write("Solution validation successful!")
-               self.debug_container.write("Final calorie state:")
+               self.debug_container.write("Final calorie states:")
                for species in solution:
                    self.debug_container.write(
                        f"- {species.name}: {simulation.calories_remaining[species.id]} calories remaining"
@@ -99,44 +91,31 @@ class SolutionValidator:
                    
        return len(errors) == 0, errors
 
-   def _validate_solution_structure(self, solution: List[Species]) -> List[str]:
-       """Validate the structural integrity of the solution"""
+   def _validate_relationships(self, solution: List[Species]) -> List[str]:
+       """Validate relationships between species"""
        errors = []
        solution_ids = {s.id for s in solution}
        species_dict = {s.id: s for s in solution}
        
        for species in solution:
-           # Validate producer constraints
            if species.species_type == SpeciesType.PRODUCER:
+               # Producers must have no prey
                if species.prey:
                    errors.append(f"Producer {species.name} should not have prey")
                if species.calories_needed != 0:
                    errors.append(f"Producer {species.name} should not need calories")
-               if not species.predators:
-                   errors.append(f"Producer {species.name} has no predators")
-           
-           # Validate animal constraints
            else:
-               # Check if animal has any prey
+               # Animals must have prey
                if not species.prey:
                    errors.append(f"Animal {species.name} has no prey")
+                   continue
                
-               # Verify all prey references are valid
+               # Validate prey references
                invalid_prey = set(species.prey) - solution_ids
                if invalid_prey:
                    errors.append(f"Invalid prey references in {species.name}: {invalid_prey}")
-               
-               # Check if animal can get enough calories
-               available_calories = sum(species_dict[prey_id].calories_provided 
-                                     for prey_id in species.prey 
-                                     if prey_id in species_dict)
-               if available_calories < species.calories_needed:
-                   errors.append(
-                       f"{species.name} needs {species.calories_needed} calories but only "
-                       f"{available_calories} available from prey"
-                   )
-           
-           # Validate predator-prey relationships
+
+           # Validate bi-directional relationships
            for prey_id in species.prey:
                if prey_id in species_dict:
                    prey = species_dict[prey_id]
@@ -145,11 +124,6 @@ class SolutionValidator:
                            f"Inconsistent relationship: {species.name} lists {prey.name} as prey "
                            f"but is not listed as its predator"
                        )
-           
-           # Verify all predator references are valid
-           invalid_predators = set(species.predators) - solution_ids
-           if invalid_predators:
-               errors.append(f"Invalid predator references in {species.name}: {invalid_predators}")
        
        return errors
 
@@ -171,16 +145,10 @@ class SolutionValidator:
        # Calculate producer ratio
        producer_ratio = len([s for s in solution if s.species_type == SpeciesType.PRODUCER]) / len(solution)
        
-       # Calculate calories remaining ratio (new metric)
-       total_initial_calories = sum(s.calories_provided for s in solution)
-       total_remaining_calories = sum(h['calories_consumed'] for h in feeding_history)
-       calories_remaining_ratio = total_remaining_calories / total_initial_calories if total_initial_calories > 0 else 0
-       
        if self.debug_mode:
            self.debug_container.write(f"Caloric efficiency: {caloric_efficiency:.2f}")
            self.debug_container.write(f"Relationship complexity: {relationship_complexity:.2f}")
            self.debug_container.write(f"Producer ratio: {producer_ratio:.2f}")
-           self.debug_container.write(f"Calories remaining ratio: {calories_remaining_ratio:.2f}")
        
        # Calculate final score using weights
        score = (
