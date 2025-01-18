@@ -1,12 +1,18 @@
 from typing import List, Set, Dict, Tuple
 import random
+import time
+from itertools import combinations
 from species import Species, SpeciesType, Ecosystem
 from validator import SolutionValidator
 from ecosystem import FeedingSimulation
 from constants import (
     BINS, PRODUCERS_PER_BIN, ANIMALS_PER_BIN,
     MIN_CALORIES, MAX_CALORIES, CALORIE_STEP,
-    TARGET_PREDATORS, TARGET_PREY
+    TARGET_PREDATORS, TARGET_PREY,
+    SAME_BIN_RELATIONSHIP_PROBABILITY,
+    DIFFERENT_BIN_RELATIONSHIP_PROBABILITY,
+    MAX_ATTEMPTS_PER_BIN,
+    SOLUTION_TIMEOUT
 )
 
 class ScenarioGenerator:
@@ -41,6 +47,19 @@ class ScenarioGenerator:
         self._establish_relationships(all_species)
         
         return Ecosystem(all_species)
+
+    def _calculate_bin_total_calories(self, bin_producers: List[Species]) -> int:
+        """Calculate total calories provided by producers in a bin"""
+        return sum(p.calories_provided for p in bin_producers)
+
+    def _rank_bins_by_calories(self, species: List[Species]) -> List[Tuple[str, int]]:
+        """Rank bins by total producer calories"""
+        bin_calories = {}
+        for bin_id in BINS:
+            producers = [s for s in species 
+                        if s.species_type == SpeciesType.PRODUCER and s.bin == bin_id]
+            bin_calories[bin_id] = self._calculate_bin_total_calories(producers)
+        return sorted(bin_calories.items(), key=lambda x: x[1], reverse=True)
 
     def _generate_producers(self, bin_id: str) -> List[Species]:
         """Generate producers for a specific bin"""
@@ -79,108 +98,133 @@ class ScenarioGenerator:
             animals.append(animal)
         return animals
 
-    def _establish_relationships(self, species: List[Species]):
-        """Establish food chain relationships between species"""
-        species_by_bin = {}
-        for s in species:
-            if s.bin not in species_by_bin:
-                species_by_bin[s.bin] = {'producers': [], 'animals': []}
-            if s.species_type == SpeciesType.PRODUCER:
-                species_by_bin[s.bin]['producers'].append(s)
-            else:
-                species_by_bin[s.bin]['animals'].append(s)
-
-        # For each bin
-        for bin_id in BINS:
-            bin_species = species_by_bin[bin_id]
+    def _establish_bin_relationships(self, producers: List[Species], animals: List[Species]):
+        """Establish relationships within a bin"""
+        # Sort animals by calories provided (descending)
+        animals_sorted = sorted(animals, key=lambda x: x.calories_provided, reverse=True)
+        
+        # Assign predators to producers (2-3 predators each)
+        for producer in producers:
+            num_predators = random.randint(2, 3)
+            potential_predators = animals_sorted.copy()
+            random.shuffle(potential_predators)
             
-            # Assign predators to producers (2-3 predators each)
-            for producer in bin_species['producers']:
-                num_predators = random.randint(2, 3)
-                potential_predators = bin_species['animals'].copy()
-                random.shuffle(potential_predators)
-                
-                for predator in potential_predators[:num_predators]:
-                    predator.add_prey(producer.id)
-                    producer.add_predator(predator.id)
+            for predator in potential_predators[:num_predators]:
+                predator.add_prey(producer.id)
+                producer.add_predator(predator.id)
 
-            # Assign prey and predators to animals
-            for animal in bin_species['animals']:
-                # 2-3 prey for each animal
-                potential_prey = ([s for s in bin_species['animals'] 
-                                if s.calories_provided < animal.calories_provided
-                                and s.id != animal.id] +
-                               bin_species['producers'])
+        # Assign prey and predators to animals
+        for i, animal in enumerate(animals_sorted):
+            # Potential prey are animals with lower calories
+            potential_prey = (animals_sorted[i+1:] + producers)
+            
+            if potential_prey:
+                num_prey = min(random.randint(2, 3), len(potential_prey))
+                selected_prey = random.sample(potential_prey, num_prey)
                 
-                if potential_prey:
-                    num_prey = min(random.randint(2, 3), len(potential_prey))
-                    selected_prey = random.sample(potential_prey, num_prey)
-                    
-                    for prey in selected_prey:
-                        animal.add_prey(prey.id)
-                        prey.add_predator(animal.id)
+                for prey in selected_prey:
+                    animal.add_prey(prey.id)
+                    prey.add_predator(animal.id)
+
+    def _establish_cross_bin_relationships(self, species: List[Species]):
+        """Establish some relationships between bins"""
+        animals = [s for s in species if s.species_type == SpeciesType.ANIMAL]
+        
+        for animal in animals:
+            if random.random() < DIFFERENT_BIN_RELATIONSHIP_PROBABILITY:
+                # Find potential prey in other bins
+                other_bin_prey = [s for s in species 
+                                if s.bin != animal.bin 
+                                and s.calories_provided < animal.calories_provided]
+                
+                if other_bin_prey:
+                    prey = random.choice(other_bin_prey)
+                    animal.add_prey(prey.id)
+                    prey.add_predator(animal.id)
+
+    def _establish_relationships(self, species: List[Species]):
+        """Establish all relationships"""
+        # First establish same-bin relationships
+        for bin_id in BINS:
+            bin_species = [s for s in species if s.bin == bin_id]
+            bin_producers = [s for s in bin_species if s.species_type == SpeciesType.PRODUCER]
+            bin_animals = [s for s in bin_species if s.species_type == SpeciesType.ANIMAL]
+            
+            self._establish_bin_relationships(bin_producers, bin_animals)
+
+        # Then add some cross-bin relationships
+        self._establish_cross_bin_relationships(species)
 
 
 class SolutionGenerator:
     @staticmethod
-    def generate_all_solutions(ecosystem: Ecosystem, debug_container=None, debug_mode=False) -> List[List[Species]]:
-        """Generate all possible valid solutions for the ecosystem"""
-        from itertools import combinations
+    def _select_optimal_bin(ecosystem: Ecosystem) -> str:
+        """Select bin with highest producer calories"""
+        bin_calories = {}
+        for bin_id in BINS:
+            producers = [s for s in ecosystem.species 
+                        if s.species_type == SpeciesType.PRODUCER and s.bin == bin_id]
+            bin_calories[bin_id] = sum(p.calories_provided for p in producers)
         
-        if debug_mode:
-            debug_container.write("Starting solution generation...")
-        
-        all_solutions = []
-        producers = ecosystem.get_producers()
-        animals = ecosystem.get_animals()
+        return max(bin_calories.items(), key=lambda x: x[1])[0]
+
+    @staticmethod
+    def _generate_bin_solutions(producers: List[Species], animals: List[Species], 
+                              debug_container=None, debug_mode=False) -> List[List[Species]]:
+        """Generate solutions for a specific bin"""
+        solutions = []
         validator = SolutionValidator()
         
         if debug_mode:
-            debug_container.write(f"Total producers available: {len(producers)}")
-            debug_container.write(f"Total animals available: {len(animals)}")
+            debug_container.write(f"Attempting combinations with {len(producers)} producers and {len(animals)} animals")
         
-        producer_combinations = list(combinations(producers, 3))
-        animal_combinations = list(combinations(animals, 5))
-        
-        if debug_mode:
-            debug_container.write(f"Total producer combinations: {len(producer_combinations)}")
-            debug_container.write(f"Total animal combinations: {len(animal_combinations)}")
-            total_combinations = len(producer_combinations) * len(animal_combinations)
-            debug_container.write(f"Total possible combinations: {total_combinations}")
+        for animal_combo in combinations(animals, TOTAL_ANIMALS_NEEDED):
+            solution = list(producers) + list(animal_combo)
+            is_valid, _ = validator.validate_solution(Ecosystem(solution), solution)
             
-            progress_step = max(1, total_combinations // 100)
-            combination_count = 0
-        
-        for producer_combo in producer_combinations:
-            for animal_combo in animal_combinations:
-                if debug_mode:
-                    combination_count += 1
-                    if combination_count % progress_step == 0:
-                        progress = (combination_count / total_combinations) * 100
-                        debug_container.write(f"Progress: {progress:.1f}% ({combination_count}/{total_combinations})")
-                
-                solution = list(producer_combo) + list(animal_combo)
+            if is_valid:
+                solutions.append(solution)
                 
                 if debug_mode:
-                    debug_container.write(f"\nTesting combination {combination_count}:")
-                    debug_container.write(f"Producers: {[p.name for p in producer_combo]}")
-                    debug_container.write(f"Animals: {[a.name for a in animal_combo]}")
-                
-                # Validate the solution
-                is_valid, errors = validator.validate_solution(ecosystem, solution)
-                
-                if debug_mode and not is_valid:
-                    debug_container.write(f"Invalid solution: {errors}")
-                
-                if is_valid:
-                    if debug_mode:
-                        debug_container.write("Valid solution found!")
-                    all_solutions.append(solution)
+                    debug_container.write(f"Found valid solution! Total solutions: {len(solutions)}")
         
-        if debug_mode:
-            debug_container.write(f"\nSolution generation complete. Found {len(all_solutions)} valid solutions.")
+        return solutions
+
+    @staticmethod
+    def generate_all_solutions(ecosystem: Ecosystem, debug_container=None, debug_mode=False) -> List[List[Species]]:
+        """Generate all valid solutions, starting with optimal bin"""
+        start_time = time.time()
+        solutions = []
         
-        return all_solutions
+        # Try bins in order of producer calories
+        ranked_bins = ScenarioGenerator()._rank_bins_by_calories(ecosystem.species)
+        
+        for bin_id, calories in ranked_bins:
+            if debug_mode:
+                debug_container.write(f"\nTrying bin {bin_id} (Total calories: {calories})")
+            
+            bin_producers = [s for s in ecosystem.species 
+                           if s.species_type == SpeciesType.PRODUCER and s.bin == bin_id]
+            bin_animals = [s for s in ecosystem.species 
+                         if s.species_type == SpeciesType.ANIMAL and s.bin == bin_id]
+            
+            bin_solutions = SolutionGenerator._generate_bin_solutions(
+                bin_producers, bin_animals, debug_container, debug_mode
+            )
+            
+            solutions.extend(bin_solutions)
+            
+            if solutions and time.time() - start_time > SOLUTION_TIMEOUT:
+                if debug_mode:
+                    debug_container.write("Solution timeout reached")
+                break
+            
+            if len(solutions) > 0:
+                if debug_mode:
+                    debug_container.write(f"Found {len(solutions)} solutions in bin {bin_id}")
+                break
+        
+        return solutions
 
     @staticmethod
     def rank_solutions(solutions: List[List[Species]], debug_container=None, debug_mode=False) -> List[Tuple[List[Species], float]]:
@@ -188,34 +232,12 @@ class SolutionGenerator:
         validator = SolutionValidator()
         scored_solutions = []
         
-        if debug_mode:
-            debug_container.write("\nStarting solution ranking...")
-            debug_container.write(f"Total solutions to rank: {len(solutions)}")
-        
-        for i, solution in enumerate(solutions):
-            if debug_mode:
-                debug_container.write(f"\nRanking solution {i+1}/{len(solutions)}")
-            
+        for solution in solutions:
             simulation = FeedingSimulation(solution)
             success, feeding_history = simulation.simulate_feeding_round()
             
             if success:
                 score = validator.get_solution_score(solution, feeding_history)
                 scored_solutions.append((solution, score))
-                
-                if debug_mode:
-                    debug_container.write(f"Solution {i+1} score: {score:.2f}")
-                    debug_container.write("Feeding history:")
-                    for feed in feeding_history:
-                        debug_container.write(f"- {feed['predator']} ate {feed['calories_consumed']} calories from {feed['prey']}")
-            else:
-                if debug_mode:
-                    debug_container.write(f"Solution {i+1} failed feeding simulation")
         
-        ranked_solutions = sorted(scored_solutions, key=lambda x: x[1], reverse=True)
-        
-        if debug_mode:
-            debug_container.write("\nRanking complete.")
-            debug_container.write(f"Top score: {ranked_solutions[0][1] if ranked_solutions else 0}")
-        
-        return ranked_solutions
+        return sorted(scored_solutions, key=lambda x: x[1], reverse=True)
