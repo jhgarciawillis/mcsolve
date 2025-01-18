@@ -165,13 +165,16 @@ class ScenarioGenerator:
 
 class SolutionGenerator:
     @staticmethod
-    def _create_solution_subset(producers: List[Species], animals: List[Species]) -> List[Species]:
+    def _create_solution_subset(producers: List[Species], animals: tuple) -> List[Species]:
         """Create a valid solution subset with updated relationships"""
         solution = []
         solution_ids = set()
         
+        # Convert animals tuple to list and combine with producers
+        all_species = producers + list(animals)
+        
         # Add all selected species and collect their IDs
-        for species in producers + animals:
+        for species in all_species:
             solution.append(species)
             solution_ids.add(species.id)
         
