@@ -165,15 +165,33 @@ class ScenarioGenerator:
 
 class SolutionGenerator:
     @staticmethod
-    def _select_optimal_bin(ecosystem: Ecosystem) -> str:
-        """Select bin with highest producer calories"""
-        bin_calories = {}
-        for bin_id in BINS:
-            producers = [s for s in ecosystem.species 
-                        if s.species_type == SpeciesType.PRODUCER and s.bin == bin_id]
-            bin_calories[bin_id] = sum(p.calories_provided for p in producers)
+    def _create_solution_subset(producers: List[Species], animals: List[Species]) -> List[Species]:
+        """Create a valid solution subset with updated relationships"""
+        solution = []
+        solution_ids = set()
         
-        return max(bin_calories.items(), key=lambda x: x[1])[0]
+        # Add all selected species and collect their IDs
+        for species in producers + animals:
+            solution.append(species)
+            solution_ids.add(species.id)
+        
+        # Create new species instances with filtered relationships
+        filtered_solution = []
+        for species in solution:
+            # Create a new instance to avoid modifying original
+            new_species = Species(
+                id=species.id,
+                name=species.name,
+                species_type=species.species_type,
+                calories_provided=species.calories_provided,
+                calories_needed=species.calories_needed,
+                bin=species.bin,
+                predators=[p for p in species.predators if p in solution_ids],
+                prey=[p for p in species.prey if p in solution_ids]
+            )
+            filtered_solution.append(new_species)
+            
+        return filtered_solution
 
     @staticmethod
     def _generate_bin_solutions(producers: List[Species], animals: List[Species], 
@@ -186,7 +204,10 @@ class SolutionGenerator:
             debug_container.write(f"Attempting combinations with {len(producers)} producers and {len(animals)} animals")
         
         for animal_combo in combinations(animals, TOTAL_ANIMALS_NEEDED):
-            solution = list(producers) + list(animal_combo)
+            # Create filtered solution with only valid relationships
+            solution = SolutionGenerator._create_solution_subset(producers, animal_combo)
+            
+            # Validate the solution
             is_valid, _ = validator.validate_solution(Ecosystem(solution), solution)
             
             if is_valid:
@@ -232,19 +253,3 @@ class SolutionGenerator:
                 break
         
         return solutions
-
-    @staticmethod
-    def rank_solutions(solutions: List[List[Species]], debug_container=None, debug_mode=False) -> List[Tuple[List[Species], float]]:
-        """Rank solutions by their score"""
-        validator = SolutionValidator()
-        scored_solutions = []
-        
-        for solution in solutions:
-            simulation = FeedingSimulation(solution)
-            success, feeding_history = simulation.simulate_feeding_round()
-            
-            if success:
-                score = validator.get_solution_score(solution, feeding_history)
-                scored_solutions.append((solution, score))
-        
-        return sorted(scored_solutions, key=lambda x: x[1], reverse=True)
