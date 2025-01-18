@@ -49,11 +49,25 @@ class FeedingSimulation:
                         self.debug_container.write(f"- {s.name}: {self.calories_remaining[s.id]}")
                 return False, self.feeding_history
 
+            # Check if any species has 0 or negative calories after feeding
+            for species in self.species:
+                if self.calories_remaining[species.id] <= 0:
+                    if self.debug_mode:
+                        self.debug_container.write(f"{species.name} has been depleted to {self.calories_remaining[species.id]} calories")
+                    return False, self.feeding_history
+
         # Check if any species that needs to eat hasn't eaten
         for species in self.species:
             if species.species_type == SpeciesType.ANIMAL and species.id not in self.has_eaten:
                 if self.debug_mode:
                     self.debug_container.write(f"{species.name} failed to eat")
+                return False, self.feeding_history
+        
+        # Final check for any species with 0 or negative calories
+        for species in self.species:
+            if self.calories_remaining[species.id] <= 0:
+                if self.debug_mode:
+                    self.debug_container.write(f"{species.name} ended with {self.calories_remaining[species.id]} calories")
                 return False, self.feeding_history
         
         if self.debug_mode:
@@ -120,7 +134,13 @@ class FeedingSimulation:
             # Multiple prey with same calories - distribute evenly
             calories_per_prey = calories_needed / len(max_calorie_prey)
             for p in max_calorie_prey:
-                self.calories_remaining[p.id] -= calories_per_prey
+                new_calories = self.calories_remaining[p.id] - calories_per_prey
+                if new_calories <= 0:  # Check before applying
+                    if self.debug_mode:
+                        self.debug_container.write(f"Would deplete {p.name} to {new_calories}")
+                    return False
+                
+                self.calories_remaining[p.id] = new_calories
                 self.feeding_history.append({
                     "predator": predator.id,
                     "prey": p.id,
@@ -135,7 +155,13 @@ class FeedingSimulation:
         else:
             # Single prey - take all needed calories
             prey = max_calorie_prey[0]
-            self.calories_remaining[prey.id] -= calories_needed
+            new_calories = self.calories_remaining[prey.id] - calories_needed
+            if new_calories <= 0:  # Check before applying
+                if self.debug_mode:
+                    self.debug_container.write(f"Would deplete {prey.name} to {new_calories}")
+                return False
+                
+            self.calories_remaining[prey.id] = new_calories
             self.feeding_history.append({
                 "predator": predator.id,
                 "prey": prey.id,
