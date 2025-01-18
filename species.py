@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List, Set, Dict, Optional
 from enum import Enum
-from .constants import MAX_PREDATORS, MAX_PREY
+from constants import MAX_PREDATORS, MAX_PREY
 
 class SpeciesType(Enum):
     PRODUCER = "producer"

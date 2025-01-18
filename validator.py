@@ -1,8 +1,10 @@
 from typing import List, Dict, Tuple, Optional
-from .species import Species, SpeciesType, Ecosystem
-from .ecosystem import FeedingSimulation
-from .constants import TOTAL_PRODUCERS_NEEDED, TOTAL_ANIMALS_NEEDED, ERROR_MESSAGES
-
+from species import Species, SpeciesType, Ecosystem
+from ecosystem import FeedingSimulation
+from constants import (
+    TOTAL_PRODUCERS_NEEDED, TOTAL_ANIMALS_NEEDED,
+    ERROR_MESSAGES
+)
 class SolutionValidator:
     def __init__(self, debug_container=None, debug_mode=False):
         self.debug_container = debug_container

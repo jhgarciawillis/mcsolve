@@ -1,8 +1,8 @@
 import pandas as pd
 from typing import List, Dict, Tuple
 from pathlib import Path
-from .species import Species, SpeciesType, Ecosystem
-from .constants import (
+from species import Species, SpeciesType, Ecosystem
+from constants import (
     SPECIES_COLUMNS, MIN_CALORIES, MAX_CALORIES, CALORIE_STEP,
     MAX_PREDATORS, MAX_PREY
 )

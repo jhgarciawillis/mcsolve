@@ -1,7 +1,7 @@
 from typing import List, Dict, Tuple, Set
 from dataclasses import dataclass
-from .species import Species, SpeciesType, Ecosystem
-from .constants import MIN_CALORIES, MAX_CALORIES
+from species import Species, SpeciesType, Ecosystem
+from constants import MIN_CALORIES, MAX_CALORIES
 
 class FeedingSimulation:
     def __init__(self, species: List[Species], debug_container=None, debug_mode=False):

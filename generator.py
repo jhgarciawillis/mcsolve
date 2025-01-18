@@ -1,9 +1,9 @@
 from typing import List, Set, Dict, Tuple
 import random
-from .species import Species, SpeciesType, Ecosystem
-from .validator import SolutionValidator
-from .ecosystem import FeedingSimulation
-from .constants import (
+from species import Species, SpeciesType, Ecosystem
+from validator import SolutionValidator
+from ecosystem import FeedingSimulation
+from constants import (
     BINS, PRODUCERS_PER_BIN, ANIMALS_PER_BIN,
     MIN_CALORIES, MAX_CALORIES, CALORIE_STEP,
     TARGET_PREDATORS, TARGET_PREY

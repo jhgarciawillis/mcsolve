@@ -1,11 +1,11 @@
 import streamlit as st
 import pandas as pd
 import os
-from lib.species import Species, SpeciesType, Ecosystem
-from lib.generator import ScenarioGenerator, SolutionGenerator
-from lib.validator import SolutionValidator
-from lib.excel_handler import ExcelHandler
-from lib.constants import *
+from species import Species, SpeciesType, Ecosystem
+from generator import ScenarioGenerator, SolutionGenerator
+from validator import SolutionValidator
+from excel_handler import ExcelHandler
+from constants import *
 
 st.set_page_config(
     page_title="McKinsey Solve Game Helper",
