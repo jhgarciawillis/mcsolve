@@ -33,8 +33,8 @@ MAX_PREDATORS = 4
 MAX_PREY = 4
 TARGET_PREDATORS = 2  # Most species should have 2-3 predators
 TARGET_PREY = 2      # Most animals should have 2-3 prey
-SAME_BIN_RELATIONSHIP_PROBABILITY = 0.9  # 90% chance relationships are in same bin
-DIFFERENT_BIN_RELATIONSHIP_PROBABILITY = 0.1  # 10% chance for cross-bin relationships
+SAME_BIN_RELATIONSHIP_PROBABILITY = 1  # 100% chance relationships are in same bin
+DIFFERENT_BIN_RELATIONSHIP_PROBABILITY = 0  # 0% chance for cross-bin relationships
 
 # Error Messages
 ERROR_MESSAGES = {
