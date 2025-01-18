@@ -6,13 +6,20 @@ from species import Species, SpeciesType, Ecosystem
 from validator import SolutionValidator
 from ecosystem import FeedingSimulation
 from constants import (
-    BINS, PRODUCERS_PER_BIN, ANIMALS_PER_BIN,
-    MIN_CALORIES, MAX_CALORIES, CALORIE_STEP,
-    TARGET_PREDATORS, TARGET_PREY,
+    BINS, 
+    PRODUCERS_PER_BIN, 
+    ANIMALS_PER_BIN,
+    MIN_CALORIES, 
+    MAX_CALORIES, 
+    CALORIE_STEP,
+    TARGET_PREDATORS, 
+    TARGET_PREY,
     SAME_BIN_RELATIONSHIP_PROBABILITY,
     DIFFERENT_BIN_RELATIONSHIP_PROBABILITY,
     MAX_ATTEMPTS_PER_BIN,
-    SOLUTION_TIMEOUT
+    SOLUTION_TIMEOUT,
+    TOTAL_PRODUCERS_NEEDED,
+    TOTAL_ANIMALS_NEEDED
 )
 
 class ScenarioGenerator:
