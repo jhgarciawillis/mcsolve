@@ -217,7 +217,7 @@ class SolutionGenerator:
 
     @staticmethod
     def generate_all_solutions(ecosystem: Ecosystem, debug_container=None, debug_mode=False) -> List[List[Species]]:
-        """Generate all valid solutions, starting with optimal bin"""
+        """Generate all valid solutions across all bins"""
         start_time = time.time()
         solutions = []
         
@@ -229,9 +229,9 @@ class SolutionGenerator:
                 debug_container.write(f"\nTrying bin {bin_id} (Total calories: {calories})")
             
             bin_producers = [s for s in ecosystem.species 
-                           if s.species_type == SpeciesType.PRODUCER and s.bin == bin_id]
+                        if s.species_type == SpeciesType.PRODUCER and s.bin == bin_id]
             bin_animals = [s for s in ecosystem.species 
-                         if s.species_type == SpeciesType.ANIMAL and s.bin == bin_id]
+                        if s.species_type == SpeciesType.ANIMAL and s.bin == bin_id]
             
             bin_solutions = SolutionGenerator._generate_bin_solutions(
                 bin_producers, bin_animals, debug_container, debug_mode
@@ -239,15 +239,16 @@ class SolutionGenerator:
             
             solutions.extend(bin_solutions)
             
-            if solutions and time.time() - start_time > SOLUTION_TIMEOUT:
+            if debug_mode:
+                debug_container.write(f"Found {len(bin_solutions)} solutions in bin {bin_id}")
+            
+            if time.time() - start_time > SOLUTION_TIMEOUT:
                 if debug_mode:
                     debug_container.write("Solution timeout reached")
                 break
-            
-            if len(solutions) > 0:
-                if debug_mode:
-                    debug_container.write(f"Found {len(solutions)} solutions in bin {bin_id}")
-                break
+        
+        if debug_mode:
+            debug_container.write(f"\nTotal solutions found across all bins: {len(solutions)}")
         
         return solutions
 
