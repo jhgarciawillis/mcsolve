@@ -123,29 +123,13 @@ class ScenarioGenerator:
         # Assign prey and predators to animals
         for i, animal in enumerate(animals_sorted):
             # Potential prey are animals with lower calories
-            potential_prey = (animals_sorted[i+1:] + producers)
+            potential_prey = animals_sorted[i+1:] + producers
             
             if potential_prey:
                 num_prey = min(random.randint(2, 3), len(potential_prey))
                 selected_prey = random.sample(potential_prey, num_prey)
                 
                 for prey in selected_prey:
-                    animal.add_prey(prey.id)
-                    prey.add_predator(animal.id)
-
-    def _establish_cross_bin_relationships(self, species: List[Species]):
-        """Establish some relationships between bins"""
-        animals = [s for s in species if s.species_type == SpeciesType.ANIMAL]
-        
-        for animal in animals:
-            if random.random() < DIFFERENT_BIN_RELATIONSHIP_PROBABILITY:
-                # Find potential prey in other bins
-                other_bin_prey = [s for s in species 
-                                if s.bin != animal.bin 
-                                and s.calories_provided < animal.calories_provided]
-                
-                if other_bin_prey:
-                    prey = random.choice(other_bin_prey)
                     animal.add_prey(prey.id)
                     prey.add_predator(animal.id)
 
@@ -159,8 +143,18 @@ class ScenarioGenerator:
             
             self._establish_bin_relationships(bin_producers, bin_animals)
 
-        # Then add some cross-bin relationships
-        self._establish_cross_bin_relationships(species)
+        # Then add some cross-bin relationships with lower probability
+        animals = [s for s in species if s.species_type == SpeciesType.ANIMAL]
+        for animal in animals:
+            if random.random() < DIFFERENT_BIN_RELATIONSHIP_PROBABILITY:
+                other_bin_species = [s for s in species 
+                                   if s.bin != animal.bin 
+                                   and s.calories_provided < animal.calories_provided]
+                
+                if other_bin_species:
+                    prey = random.choice(other_bin_species)
+                    animal.add_prey(prey.id)
+                    prey.add_predator(animal.id)
 
 
 class SolutionGenerator:
@@ -201,7 +195,7 @@ class SolutionGenerator:
                               debug_container=None, debug_mode=False) -> List[List[Species]]:
         """Generate solutions for a specific bin"""
         solutions = []
-        validator = SolutionValidator()
+        validator = SolutionValidator(debug_container, debug_mode)
         
         if debug_mode:
             debug_container.write(f"Attempting combinations with {len(producers)} producers and {len(animals)} animals")
@@ -256,3 +250,46 @@ class SolutionGenerator:
                 break
         
         return solutions
+
+    @staticmethod
+    def rank_solutions(solutions: List[List[Species]], debug_container=None, debug_mode=False) -> List[Tuple[List[Species], float]]:
+        """Rank solutions by their score"""
+        validator = SolutionValidator(debug_container, debug_mode)
+        scored_solutions = []
+        
+        if debug_mode:
+            debug_container.write("\nStarting solution ranking...")
+            debug_container.write(f"Total solutions to rank: {len(solutions)}")
+        
+        for i, solution in enumerate(solutions):
+            if debug_mode:
+                debug_container.write(f"\nRanking solution {i+1}/{len(solutions)}")
+            
+            simulation = FeedingSimulation(solution, debug_container, debug_mode)
+            success, feeding_history = simulation.simulate_feeding_round()
+            
+            if success:
+                score = validator.get_solution_score(solution, feeding_history)
+                scored_solutions.append((solution, score))
+                
+                if debug_mode:
+                    debug_container.write(f"Solution {i+1} score: {score:.2f}")
+                    debug_container.write("Feeding history:")
+                    for feed in feeding_history:
+                        debug_container.write(
+                            f"- {feed['predator']} ate {feed['calories_consumed']} calories from {feed['prey']}"
+                        )
+            else:
+                if debug_mode:
+                    debug_container.write(f"Solution {i+1} failed feeding simulation")
+        
+        ranked_solutions = sorted(scored_solutions, key=lambda x: x[1], reverse=True)
+        
+        if debug_mode:
+            debug_container.write("\nRanking complete.")
+            if ranked_solutions:
+                debug_container.write(f"Top score: {ranked_solutions[0][1]}")
+            else:
+                debug_container.write("No valid solutions found after ranking")
+        
+        return ranked_solutions
