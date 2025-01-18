@@ -6,13 +6,11 @@ TOTAL_PRODUCERS_NEEDED = 3
 TOTAL_ANIMALS_NEEDED = 5
 
 # Excel Constants
-SPECIES_SHEET = 'Species'
-REQUIRED_COLUMNS = [
-    'id', 'name', 'type', 'calories_provided', 
-    'calories_needed', 'bin', 'eaten_by', 'food_sources'
-]
+REQUIRED_SHEETS = ['Species', 'Relationships']
+SPECIES_COLUMNS = ['id', 'name', 'type', 'calories_provided', 'calories_needed', 'bin']
+RELATIONSHIP_COLUMNS = ['predator_id', 'prey_id']
 
-# Validation Messages
+# Error Messages
 ERROR_MESSAGES = {
     'invalid_producer_count': 'Solution must contain exactly 3 producers',
     'invalid_animal_count': 'Solution must contain exactly 5 animals',

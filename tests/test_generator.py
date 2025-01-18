@@ -1,7 +1,7 @@
 import unittest
-from core.generator import ScenarioGenerator, SolutionGenerator
+from lib.generator import ScenarioGenerator, SolutionGenerator
 from core.species import Species, SpeciesType, Ecosystem
-from utils.constants import BINS, PRODUCERS_PER_BIN, ANIMALS_PER_BIN
+from lib.constants import BINS, PRODUCERS_PER_BIN, ANIMALS_PER_BIN
 
 class TestScenarioGenerator(unittest.TestCase):
     def setUp(self):

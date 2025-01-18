@@ -1,10 +1,11 @@
 import streamlit as st
 import pandas as pd
-from pathlib import Path
-from core.species import Ecosystem
-from core.generator import ScenarioGenerator, SolutionGenerator
-from core.validator import SolutionValidator
-from utils.excel_handler import ExcelHandler
+import os
+from lib.species import Species, SpeciesType, Ecosystem
+from lib.generator import ScenarioGenerator, SolutionGenerator
+from lib.validator import SolutionValidator
+from lib.excel_handler import ExcelHandler
+from lib.constants import *
 
 st.set_page_config(
     page_title="McKinsey Solve Game Helper",
@@ -12,7 +13,13 @@ st.set_page_config(
     layout="wide"
 )
 
+def create_temp_directory():
+    if not os.path.exists("temp"):
+        os.makedirs("temp")
+
 def main():
+    create_temp_directory()
+    
     st.title("McKinsey Solve Game Helper")
     
     menu = ["Generate Scenario", "Find Solutions", "Check Solution"]
@@ -29,73 +36,139 @@ def generate_scenario_page():
     st.header("Generate New Scenario")
     
     if st.button("Generate New Scenario"):
-        generator = ScenarioGenerator()
-        ecosystem = generator.generate_scenario()
-        
-        # Save to temporary file
-        temp_file = "temp_scenario.xlsx"
-        ExcelHandler.write_scenario(ecosystem, temp_file)
-        
-        # Provide download button
-        with open(temp_file, "rb") as file:
-            st.download_button(
-                label="Download Scenario",
-                data=file,
-                file_name="mckinsey_scenario.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+        with st.spinner("Generating scenario..."):
+            generator = ScenarioGenerator()
+            ecosystem = generator.generate_scenario()
+            
+            # Save to temporary file
+            temp_file = "temp/scenario.xlsx"
+            ExcelHandler.write_scenario(ecosystem, temp_file)
+            
+            # Provide download button
+            with open(temp_file, "rb") as file:
+                st.download_button(
+                    label="Download Scenario",
+                    data=file,
+                    file_name="mckinsey_scenario.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
 
 def find_solutions_page():
     st.header("Find Solutions")
     
-    uploaded_file = st.file_uploader("Upload Scenario", type="xlsx")
-    if uploaded_file is not None:
-        ecosystem = ExcelHandler.read_scenario(uploaded_file)
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("Download Empty Template"):
+            temp_file = "temp/template.xlsx"
+            ExcelHandler.create_template(temp_file)
+            with open(temp_file, "rb") as file:
+                st.download_button(
+                    label="Download Template",
+                    data=file,
+                    file_name="mckinsey_template.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+    
+    with col2:
+        uploaded_file = st.file_uploader("Upload Scenario", type="xlsx")
         
-        if st.button("Generate Solutions"):
-            solutions = SolutionGenerator.generate_all_solutions(ecosystem)
-            ranked_solutions = SolutionGenerator.rank_solutions(solutions)
+    if uploaded_file is not None:
+        # Save uploaded file temporarily
+        temp_path = "temp/uploaded_scenario.xlsx"
+        with open(temp_path, "wb") as f:
+            f.write(uploaded_file.getvalue())
+        
+        # Validate format
+        is_valid, errors = ExcelHandler.validate_excel_format(temp_path)
+        if not is_valid:
+            st.error("Invalid Excel format:")
+            for error in errors:
+                st.write(f"- {error}")
+            return
+        
+        try:
+            ecosystem = ExcelHandler.read_scenario(temp_path)
             
-            st.write(f"Found {len(ranked_solutions)} valid solutions")
-            
-            for i, (solution, score) in enumerate(ranked_solutions[:10]):
-                st.subheader(f"Solution {i+1} (Score: {score:.2f})")
-                df = pd.DataFrame([{
-                    'ID': s.id,
-                    'Name': s.name,
-                    'Type': s.species_type.value,
-                    'Calories Provided': s.calories_provided,
-                    'Calories Needed': s.calories_needed,
-                    'Bin': s.bin
-                } for s in solution])
-                st.dataframe(df)
+            if st.button("Generate Solutions"):
+                with st.spinner("Generating solutions..."):
+                    solutions = SolutionGenerator.generate_all_solutions(ecosystem)
+                    ranked_solutions = SolutionGenerator.rank_solutions(solutions)
+                    
+                    st.write(f"Found {len(ranked_solutions)} valid solutions")
+                    
+                    for i, (solution, score) in enumerate(ranked_solutions[:10]):
+                        with st.expander(f"Solution {i+1} (Score: {score:.2f})"):
+                            df = pd.DataFrame([{
+                                'ID': s.id,
+                                'Name': s.name,
+                                'Type': s.species_type.value,
+                                'Calories Provided': s.calories_provided,
+                                'Calories Needed': s.calories_needed,
+                                'Bin': s.bin
+                            } for s in solution])
+                            st.dataframe(df)
+                            
+                            # Add solution download option
+                            temp_solution_file = f"temp/solution_{i+1}.xlsx"
+                            ExcelHandler.write_solution(solution, [], temp_solution_file)
+                            with open(temp_solution_file, "rb") as file:
+                                st.download_button(
+                                    label=f"Download Solution {i+1}",
+                                    data=file,
+                                    file_name=f"solution_{i+1}.xlsx",
+                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                    key=f"download_solution_{i}"
+                                )
+                            
+        except Exception as e:
+            st.error(f"Error processing file: {str(e)}")
 
 def check_solution_page():
     st.header("Check Solution")
     
-    uploaded_scenario = st.file_uploader("Upload Scenario", type="xlsx", key="scenario")
-    uploaded_solution = st.file_uploader("Upload Solution", type="xlsx", key="solution")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        uploaded_scenario = st.file_uploader("Upload Scenario", type="xlsx", key="scenario")
+    
+    with col2:
+        uploaded_solution = st.file_uploader("Upload Solution", type="xlsx", key="solution")
     
     if uploaded_scenario is not None and uploaded_solution is not None:
-        ecosystem = ExcelHandler.read_scenario(uploaded_scenario)
-        solution = ExcelHandler.read_scenario(uploaded_solution)
+        # Save uploaded files temporarily
+        scenario_path = "temp/check_scenario.xlsx"
+        solution_path = "temp/check_solution.xlsx"
         
-        if st.button("Validate Solution"):
-            validator = SolutionValidator()
-            is_valid, errors = validator.validate_solution(ecosystem, solution.species)
+        with open(scenario_path, "wb") as f:
+            f.write(uploaded_scenario.getvalue())
+        with open(solution_path, "wb") as f:
+            f.write(uploaded_solution.getvalue())
+        
+        try:
+            ecosystem = ExcelHandler.read_scenario(scenario_path)
+            solution = ExcelHandler.read_scenario(solution_path)
             
-            if is_valid:
-                st.success("Valid solution!")
-                simulation = FeedingSimulation(solution.species)
-                success, feeding_history = simulation.simulate_feeding_round()
-                
-                st.subheader("Feeding History")
-                df = pd.DataFrame(feeding_history)
-                st.dataframe(df)
-            else:
-                st.error("Invalid solution")
-                for error in errors:
-                    st.write(f"- {error}")
+            if st.button("Validate Solution"):
+                with st.spinner("Validating solution..."):
+                    validator = SolutionValidator()
+                    is_valid, errors = validator.validate_solution(ecosystem, solution.species)
+                    
+                    if is_valid:
+                        st.success("Valid solution!")
+                        simulation = FeedingSimulation(solution.species)
+                        success, feeding_history = simulation.simulate_feeding_round()
+                        
+                        st.subheader("Feeding History")
+                        df = pd.DataFrame(feeding_history)
+                        st.dataframe(df)
+                    else:
+                        st.error("Invalid solution")
+                        for error in errors:
+                            st.write(f"- {error}")
+                            
+        except Exception as e:
+            st.error(f"Error processing files: {str(e)}")
 
 if __name__ == "__main__":
     main()

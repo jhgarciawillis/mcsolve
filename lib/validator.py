@@ -1,7 +1,7 @@
 from typing import List, Tuple, Dict
 from .species import Species, SpeciesType, Ecosystem
 from .ecosystem import FeedingSimulation
-from ..utils.constants import ERROR_MESSAGES
+from .constants import ERROR_MESSAGES
 
 class SolutionValidator:
     @staticmethod

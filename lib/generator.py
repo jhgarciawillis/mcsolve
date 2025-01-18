@@ -1,7 +1,7 @@
 import random
 from typing import List, Set, Dict
 from .species import Species, SpeciesType, Ecosystem
-from ..utils.constants import BINS, PRODUCERS_PER_BIN, ANIMALS_PER_BIN
+from .constants import BINS, PRODUCERS_PER_BIN, ANIMALS_PER_BIN
 
 class ScenarioGenerator:
     def __init__(self):

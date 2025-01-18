@@ -1,7 +1,7 @@
 import unittest
-from core.validator import SolutionValidator
+from lib.validator import SolutionValidator
 from core.species import Species, SpeciesType, Ecosystem
-from core.ecosystem import FeedingSimulation
+from lib.ecosystem import FeedingSimulation
 
 class TestSolutionValidator(unittest.TestCase):
     def setUp(self):
