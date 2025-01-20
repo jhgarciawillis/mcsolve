@@ -1,186 +1,205 @@
-from dataclasses import dataclass, field
-from typing import List, Set, Dict, Optional
-from enum import Enum
+import pandas as pd
+from typing import List, Dict, Tuple
+from pathlib import Path
+from species import Species, SpeciesType, Ecosystem
+from constants import (
+    BASE_SPECIES_COLUMNS,
+    MIN_CALORIES,
+    MAX_CALORIES,
+    CALORIE_STEP,
+    BINS,
+    PRODUCERS_PER_BIN,
+    ANIMALS_PER_BIN
+)
 
-class SpeciesType(Enum):
-    PRODUCER = "producer"
-    ANIMAL = "animal"
+class ExcelHandler:
+    @staticmethod
+    def _get_predator_prey_columns(df: pd.DataFrame) -> Tuple[List[str], List[str]]:
+        """Get all predator and prey columns from dataframe"""
+        predator_cols = [col for col in df.columns if col.startswith('predator_')]
+        prey_cols = [col for col in df.columns if col.startswith('prey_')]
+        return predator_cols, prey_cols
 
-@dataclass
-class Species:
-    id: str
-    name: str
-    species_type: SpeciesType
-    calories_provided: int
-    calories_needed: int
-    bin: str  # A, B, or C
-    predators: List[str] = field(default_factory=list)  # List of predator IDs
-    prey: List[str] = field(default_factory=list)      # List of prey IDs
-
-    def __post_init__(self):
-        # Initialize empty lists if None
-        self.predators = [] if self.predators is None else self.predators
-        self.prey = [] if self.prey is None else self.prey
-
-        # Enforce producer rules
-        if self.species_type == SpeciesType.PRODUCER:
-            self.calories_needed = 0
-            self.prey = []  # Producers have no prey
-
-    def create_copy(self) -> 'Species':
-        """Create a deep copy of the species with new relationship lists"""
-        return Species(
-            id=self.id,
-            name=self.name,
-            species_type=self.species_type,
-            calories_provided=self.calories_provided,
-            calories_needed=self.calories_needed,
-            bin=self.bin,
-            predators=self.predators.copy(),
-            prey=self.prey.copy()
-        )
-
-    def add_predator(self, predator_id: str) -> bool:
-        """Add a predator"""
-        if predator_id not in self.predators:
-            self.predators.append(predator_id)
-            return True
-        return False
-
-    def add_prey(self, prey_id: str) -> bool:
-        """Add a prey if not a producer"""
-        if self.species_type == SpeciesType.PRODUCER:
-            return False
-        if prey_id not in self.prey:
-            self.prey.append(prey_id)
-            return True
-        return False
-
-    def remove_predator(self, predator_id: str):
-        """Remove a predator"""
-        if predator_id in self.predators:
-            self.predators.remove(predator_id)
-
-    def remove_prey(self, prey_id: str):
-        """Remove a prey"""
-        if prey_id in self.prey:
-            self.prey.remove(prey_id)
-            
-    def filter_relationships_by_bin(self, species_dict: Dict[str, 'Species']):
-        """Filter relationships to only include species from the same bin"""
-        self.predators = [pred_id for pred_id in self.predators 
-                         if pred_id in species_dict and
-                         species_dict[pred_id].bin == self.bin]
+    @staticmethod
+    def create_template(file_path: str):
+        """Create an empty template Excel file"""
+        # For a single bin scenario
+        bin_id = 'A'  # Default to Bin A
         
-        self.prey = [prey_id for prey_id in self.prey
-                    if prey_id in species_dict and
-                    species_dict[prey_id].bin == self.bin]
-
-    def __hash__(self):
-        return hash(self.id)
-
-    def __eq__(self, other):
-        if not isinstance(other, Species):
-            return False
-        return self.id == other.id
-
-    def __str__(self):
-        return f"{self.name} ({self.species_type.value}) in Bin {self.bin}"
-
-    def __repr__(self):
-        return f"Species(id='{self.id}', name='{self.name}', type={self.species_type.value})"
-
-class Ecosystem:
-    def __init__(self, species: List[Species]):
-        self.species = species
-        self.species_dict = {s.id: s for s in species}
-        self._validate_ecosystem()
-
-    def _validate_ecosystem(self):
-        """Validate ecosystem consistency"""
-        solution_ids = {s.id for s in self.species}
+        data = []
+        # Add producers
+        for i in range(PRODUCERS_PER_BIN):
+            data.append({'id': f'P_{bin_id}_{i+1}', 'type': 'producer', 'bin': bin_id})
         
-        for species in self.species:
-            # Validate predator references
-            invalid_predators = [pred_id for pred_id in species.predators 
-                               if pred_id not in solution_ids]
-            if invalid_predators:
-                raise ValueError(f"Invalid predator reference {invalid_predators[0]} in {species.name}")
+        # Add animals
+        for i in range(ANIMALS_PER_BIN):
+            data.append({'id': f'A_{bin_id}_{i+1}', 'type': 'animal', 'bin': bin_id})
+        
+        df = pd.DataFrame(data)
+        
+        with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='Species', index=False)
             
-            # Validate prey references
-            invalid_prey = [prey_id for prey_id in species.prey 
-                          if prey_id not in solution_ids]
-            if invalid_prey:
-                raise ValueError(f"Invalid prey reference {invalid_prey[0]} in {species.name}")
-
-    def get_producers(self) -> List[Species]:
-        """Get all producers in the ecosystem"""
-        return [s for s in self.species if s.species_type == SpeciesType.PRODUCER]
-
-    def get_animals(self) -> List[Species]:
-        """Get all animals in the ecosystem"""
-        return [s for s in self.species if s.species_type == SpeciesType.ANIMAL]
-
-    def get_species_by_bin(self, bin_id: str) -> List[Species]:
-        """Get all species in a specific bin"""
-        return [s for s in self.species if s.bin == bin_id]
-
-    def get_bin_producers(self, bin_id: str) -> List[Species]:
-        """Get producers from a specific bin"""
-        return [s for s in self.species 
-                if s.species_type == SpeciesType.PRODUCER and s.bin == bin_id]
-
-    def get_bin_animals(self, bin_id: str) -> List[Species]:
-        """Get animals from a specific bin"""
-        return [s for s in self.species 
-                if s.species_type == SpeciesType.ANIMAL and s.bin == bin_id]
-
-    def get_bin_calories(self, bin_id: str) -> int:
-        """Get total producer calories in a bin"""
-        return sum(s.calories_provided for s in self.get_bin_producers(bin_id))
-
-    def get_species_by_id(self, species_id: str) -> Optional[Species]:
-        """Get a species by its ID"""
-        return self.species_dict.get(species_id)
-
-    def add_species(self, species: Species):
-        """Add a new species to the ecosystem"""
-        if species.id not in self.species_dict:
-            self.species.append(species)
-            self.species_dict[species.id] = species
-
-    def remove_species(self, species_id: str):
-        """Remove a species and clean up its relationships"""
-        if species_id in self.species_dict:
-            species = self.species_dict[species_id]
+            # Add data validation
+            workbook = writer.book
+            worksheet = writer.sheets['Species']
             
-            # Remove from all prey's predators lists
-            for prey_id in species.prey:
-                if prey_id in self.species_dict:
-                    self.species_dict[prey_id].remove_predator(species_id)
+            # Add type dropdown
+            type_validation = {
+                'type': 'list',
+                'source': ['producer', 'animal']
+            }
+            worksheet.data_validation('C2:C1048576', type_validation)
             
-            # Remove from all predators' prey lists
-            for predator_id in species.predators:
-                if predator_id in self.species_dict:
-                    self.species_dict[predator_id].remove_prey(species_id)
+            # Add bin dropdown
+            bin_validation = {
+                'type': 'list',
+                'source': BINS
+            }
+            worksheet.data_validation('F2:F1048576', bin_validation)
+
+    @staticmethod
+    def validate_excel_format(file_path: str) -> Tuple[bool, List[str]]:
+        """Validate if Excel file matches required format"""
+        errors = []
+        try:
+            df = pd.read_excel(file_path)
             
-            # Remove from collections
-            self.species.remove(species)
-            del self.species_dict[species_id]
+            # Check required columns
+            missing_cols = set(BASE_SPECIES_COLUMNS) - set(df.columns)
+            if missing_cols:
+                errors.append(f"Missing columns: {missing_cols}")
+            
+            # Validate data types
+            try:
+                df['calories_provided'] = df['calories_provided'].astype(int)
+                df['calories_needed'] = df['calories_needed'].astype(int)
+                
+                # Validate calorie ranges
+                invalid_calories = df[
+                    (df['calories_provided'] % CALORIE_STEP != 0) |
+                    ((df['calories_provided'] != 0) & 
+                     ((df['calories_provided'] < MIN_CALORIES) | 
+                      (df['calories_provided'] > MAX_CALORIES)))
+                ]
+                if not invalid_calories.empty:
+                    errors.append("Invalid calorie values found")
+                
+            except ValueError:
+                errors.append("Calories must be integer values")
+            
+            # Validate types
+            invalid_types = df[~df['type'].isin(['producer', 'animal'])]
+            if not invalid_types.empty:
+                errors.append("Invalid species types found")
+            
+            # Validate bins
+            invalid_bins = df[~df['bin'].isin(BINS)]
+            if not invalid_bins.empty:
+                errors.append("Invalid bin values found")
+            
+            return len(errors) == 0, errors
+            
+        except Exception as e:
+            errors.append(f"Error reading Excel file: {str(e)}")
+            return False, errors
 
-    def get_species_count_by_type(self) -> Dict[SpeciesType, int]:
-        """Get count of species by type"""
-        counts = {SpeciesType.PRODUCER: 0, SpeciesType.ANIMAL: 0}
-        for species in self.species:
-            counts[species.species_type] += 1
-        return counts
+    @staticmethod
+    def read_scenario(file_path: str) -> Ecosystem:
+        """Read scenario from Excel file with validation"""
+        is_valid, errors = ExcelHandler.validate_excel_format(file_path)
+        if not is_valid:
+            raise ValueError(f"Invalid Excel format: {'; '.join(errors)}")
+        
+        df = pd.read_excel(file_path)
+        predator_cols, prey_cols = ExcelHandler._get_predator_prey_columns(df)
+        species_list = []
+        
+        for _, row in df.iterrows():
+            # Get all non-empty predators and prey
+            predators = [
+                str(row[col]) for col in predator_cols
+                if pd.notna(row[col])
+            ]
+            
+            prey = [
+                str(row[col]) for col in prey_cols
+                if pd.notna(row[col])
+            ]
+            
+            species = Species(
+                id=str(row['id']),
+                name=str(row['name']),
+                species_type=SpeciesType(row['type']),
+                calories_provided=int(row['calories_provided']),
+                calories_needed=int(row['calories_needed']),
+                bin=str(row['bin']),
+                predators=predators,
+                prey=prey
+            )
+            species_list.append(species)
+        
+        return Ecosystem(species_list)
 
-    def get_bin_statistics(self, bin_id: str) -> Dict:
-        """Get statistics for a specific bin"""
-        bin_species = self.get_species_by_bin(bin_id)
-        return {
-            'total_species': len(bin_species),
-            'producers': len([s for s in bin_species if s.species_type == SpeciesType.PRODUCER]),
-            'animals': len([s for s in bin_species if s.species_type == SpeciesType.ANIMAL]),
-            'total_calories': self.get_bin_calories(bin_id)
-        }
+    @staticmethod
+    def write_scenario(ecosystem: Ecosystem, file_path: str):
+        """Write ecosystem to Excel file"""
+        data = []
+        
+        for species in ecosystem.species:
+            row = {
+                'id': species.id,
+                'name': species.name,
+                'type': species.species_type.value,
+                'calories_provided': species.calories_provided,
+                'calories_needed': species.calories_needed,
+                'bin': species.bin
+            }
+            
+            # Add predator columns
+            for i, pred in enumerate(species.predators, 1):
+                row[f'predator_{i}'] = pred
+                
+            # Add prey columns
+            for i, prey in enumerate(species.prey, 1):
+                row[f'prey_{i}'] = prey
+            
+            data.append(row)
+        
+        df = pd.DataFrame(data)
+        df.to_excel(file_path, index=False, sheet_name='Species')
+
+    @staticmethod
+    def write_solution(solution: List[Species], feeding_history: List[Dict], file_path: str):
+        """Write solution and feeding history to Excel file"""
+        # Create Species data
+        species_data = []
+        
+        for species in solution:
+            row = {
+                'id': species.id,
+                'name': species.name,
+                'type': species.species_type.value,
+                'calories_provided': species.calories_provided,
+                'calories_needed': species.calories_needed,
+                'bin': species.bin
+            }
+            
+            # Add predator columns
+            for i, pred in enumerate(species.predators, 1):
+                row[f'predator_{i}'] = pred
+                
+            # Add prey columns
+            for i, prey in enumerate(species.prey, 1):
+                row[f'prey_{i}'] = prey
+                
+            species_data.append(row)
+        
+        # Write to Excel
+        with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
+            # Write species sheet
+            pd.DataFrame(species_data).to_excel(writer, sheet_name='Species', index=False)
+            
+            # Write feeding history if provided
+            if feeding_history:
+                pd.DataFrame(feeding_history).to_excel(writer, sheet_name='Feeding_History', index=False)

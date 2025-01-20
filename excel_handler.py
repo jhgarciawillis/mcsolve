@@ -1,5 +1,3 @@
-# excel_handler.py
-
 import pandas as pd
 from typing import List, Dict, Tuple
 from pathlib import Path
@@ -9,7 +7,9 @@ from constants import (
     MIN_CALORIES,
     MAX_CALORIES,
     CALORIE_STEP,
-    BINS
+    BINS,
+    PRODUCERS_PER_BIN,
+    ANIMALS_PER_BIN
 )
 
 class ExcelHandler:
@@ -21,19 +21,19 @@ class ExcelHandler:
         return predator_cols, prey_cols
 
     @staticmethod
-    def create_template(file_path: str, all_bins: bool = True):
+    def create_template(file_path: str):
         """Create an empty template Excel file"""
-        if all_bins:
-            bins = BINS
-        else:
-            bins = ['A']  # Placeholder bin for single bin case
+        # For a single bin scenario
+        bin_id = 'A'  # Default to Bin A
         
         data = []
-        for bin in bins:
-            for i in range(3):
-                data.append({'id': f'P_{bin}_{i+1}', 'type': 'producer', 'bin': bin})
-            for i in range(10):
-                data.append({'id': f'A_{bin}_{i+1}', 'type': 'animal', 'bin': bin})
+        # Add producers
+        for i in range(PRODUCERS_PER_BIN):
+            data.append({'id': f'P_{bin_id}_{i+1}', 'type': 'producer', 'bin': bin_id})
+        
+        # Add animals
+        for i in range(ANIMALS_PER_BIN):
+            data.append({'id': f'A_{bin_id}_{i+1}', 'type': 'animal', 'bin': bin_id})
         
         df = pd.DataFrame(data)
         
@@ -51,13 +51,12 @@ class ExcelHandler:
             }
             worksheet.data_validation('C2:C1048576', type_validation)
             
-            # Add bin dropdown if using all bins
-            if all_bins:
-                bin_validation = {
-                    'type': 'list',
-                    'source': ['A', 'B', 'C']
-                }
-                worksheet.data_validation('F2:F1048576', bin_validation)
+            # Add bin dropdown
+            bin_validation = {
+                'type': 'list',
+                'source': BINS
+            }
+            worksheet.data_validation('F2:F1048576', bin_validation)
 
     @staticmethod
     def validate_excel_format(file_path: str) -> Tuple[bool, List[str]]:

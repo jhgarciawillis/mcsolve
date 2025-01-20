@@ -70,17 +70,12 @@ def generate_scenario_page(debug_mode):
 def find_solutions_page(debug_mode):
     st.header("Find Solutions")
     
-    bin_choice = st.radio("Select Starting Bin", ("All Bins (3 Bins)", "Single Bin (1 Bin)"))
-    
     col1, col2 = st.columns(2)
     
     with col1:
         if st.button("Download Empty Template"):
             temp_file = "temp/template.xlsx"
-            if bin_choice == "All Bins (3 Bins)":
-                ExcelHandler.create_template(temp_file, all_bins=True)
-            else:
-                ExcelHandler.create_template(temp_file, all_bins=False)
+            ExcelHandler.create_template(temp_file)
             with open(temp_file, "rb") as file:
                 st.download_button(
                     label="Download Template",
@@ -128,18 +123,11 @@ def find_solutions_page(debug_mode):
                 debug_container = st.empty()
                 
                 with st.spinner("Generating solutions..."):
-                    if bin_choice == "All Bins (3 Bins)":
-                        solutions = SolutionGenerator.generate_all_solutions(
-                            ecosystem, 
-                            debug_container if debug_mode else None,
-                            debug_mode
-                        )
-                    else:
-                        solutions = SolutionGenerator.generate_single_bin_solutions(
-                            ecosystem,
-                            debug_container if debug_mode else None,
-                            debug_mode
-                        )
+                    solutions = SolutionGenerator.generate_solutions(
+                        ecosystem, 
+                        debug_container if debug_mode else None,
+                        debug_mode
+                    )
                     
                     if solutions:
                         ranked_solutions = SolutionGenerator.rank_solutions(

@@ -3,9 +3,7 @@ from species import Species, SpeciesType, Ecosystem
 from constants import (
     MIN_CALORIES,
     MAX_CALORIES,
-    CALORIE_STEP,
-    TOTAL_PRODUCERS_NEEDED,
-    TOTAL_ANIMALS_NEEDED
+    CALORIE_STEP
 )
 
 class FeedingSimulation:

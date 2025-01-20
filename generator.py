@@ -9,6 +9,8 @@ from constants import (
     BINS, 
     PRODUCERS_PER_BIN, 
     ANIMALS_PER_BIN,
+    TOTAL_PRODUCERS_NEEDED, 
+    TOTAL_ANIMALS_NEEDED,
     MIN_CALORIES, 
     MAX_CALORIES, 
     CALORIE_STEP,
@@ -17,9 +19,7 @@ from constants import (
     SAME_BIN_RELATIONSHIP_PROBABILITY,
     DIFFERENT_BIN_RELATIONSHIP_PROBABILITY,
     MAX_ATTEMPTS_PER_BIN,
-    SOLUTION_TIMEOUT,
-    TOTAL_PRODUCERS_NEEDED,
-    TOTAL_ANIMALS_NEEDED
+    SOLUTION_TIMEOUT
 )
 
 class ScenarioGenerator:
@@ -143,20 +143,6 @@ class ScenarioGenerator:
             
             self._establish_bin_relationships(bin_producers, bin_animals)
 
-        # Then add some cross-bin relationships with lower probability
-        animals = [s for s in species if s.species_type == SpeciesType.ANIMAL]
-        for animal in animals:
-            if random.random() < DIFFERENT_BIN_RELATIONSHIP_PROBABILITY:
-                other_bin_species = [s for s in species 
-                                   if s.bin != animal.bin 
-                                   and s.calories_provided < animal.calories_provided]
-                
-                if other_bin_species:
-                    prey = random.choice(other_bin_species)
-                    animal.add_prey(prey.id)
-                    prey.add_predator(animal.id)
-
-
 class SolutionGenerator:
     @staticmethod
     def _create_solution_subset(producers: List[Species], animals: tuple) -> List[Species]:
@@ -191,33 +177,8 @@ class SolutionGenerator:
         return filtered_solution
 
     @staticmethod
-    def _generate_bin_solutions(producers: List[Species], animals: List[Species], 
-                              debug_container=None, debug_mode=False) -> List[List[Species]]:
-        """Generate solutions for a specific bin"""
-        solutions = []
-        validator = SolutionValidator(debug_container, debug_mode)
-        
-        if debug_mode:
-            debug_container.write(f"Attempting combinations with {len(producers)} producers and {len(animals)} animals")
-        
-        for animal_combo in combinations(animals, TOTAL_ANIMALS_NEEDED):
-            # Create filtered solution with only valid relationships
-            solution = SolutionGenerator._create_solution_subset(producers, animal_combo)
-            
-            # Validate the solution
-            is_valid, _ = validator.validate_solution(Ecosystem(solution), solution)
-            
-            if is_valid:
-                solutions.append(solution)
-                
-                if debug_mode:
-                    debug_container.write(f"Found valid solution! Total solutions: {len(solutions)}")
-        
-        return solutions
-
-    @staticmethod
-    def generate_all_solutions(ecosystem: Ecosystem, debug_container=None, debug_mode=False) -> List[List[Species]]:
-        """Generate all valid solutions across all bins"""
+    def generate_solutions(ecosystem: Ecosystem, debug_container=None, debug_mode=False) -> List[List[Species]]:
+        """Generate all valid solutions"""
         start_time = time.time()
         solutions = []
         
@@ -249,6 +210,31 @@ class SolutionGenerator:
         
         if debug_mode:
             debug_container.write(f"\nTotal solutions found across all bins: {len(solutions)}")
+        
+        return solutions
+
+    @staticmethod
+    def _generate_bin_solutions(producers: List[Species], animals: List[Species], 
+                              debug_container=None, debug_mode=False) -> List[List[Species]]:
+        """Generate solutions for a specific bin"""
+        solutions = []
+        validator = SolutionValidator(debug_container, debug_mode)
+        
+        if debug_mode:
+            debug_container.write(f"Attempting combinations with {len(producers)} producers and {len(animals)} animals")
+        
+        for animal_combo in combinations(animals, TOTAL_ANIMALS_NEEDED):
+            # Create filtered solution with only valid relationships
+            solution = SolutionGenerator._create_solution_subset(producers, animal_combo)
+            
+            # Validate the solution
+            is_valid, _ = validator.validate_solution(Ecosystem(solution), solution)
+            
+            if is_valid:
+                solutions.append(solution)
+                
+                if debug_mode:
+                    debug_container.write(f"Found valid solution! Total solutions: {len(solutions)}")
         
         return solutions
 
