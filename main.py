@@ -70,7 +70,7 @@ def generate_scenario_page(debug_mode):
 def find_solutions_page(debug_mode):
     st.header("Find Solutions")
     
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         if st.button("Download Empty Template"):
@@ -86,6 +86,9 @@ def find_solutions_page(debug_mode):
     
     with col2:
         uploaded_file = st.file_uploader("Upload Scenario", type="xlsx")
+        
+    with col3:
+        selected_bin = st.selectbox("Select Bin", ["All"] + BINS)
         
     if uploaded_file is not None:
         st.write("Processing uploaded file...")
@@ -123,11 +126,19 @@ def find_solutions_page(debug_mode):
                 debug_container = st.empty()
                 
                 with st.spinner("Generating solutions..."):
-                    solutions = SolutionGenerator.generate_all_solutions(
-                        ecosystem, 
-                        debug_container if debug_mode else None,
-                        debug_mode
-                    )
+                    if selected_bin == "All":
+                        solutions = SolutionGenerator.generate_all_solutions(
+                            ecosystem, 
+                            debug_container if debug_mode else None,
+                            debug_mode
+                        )
+                    else:
+                        solutions = SolutionGenerator.generate_bin_solutions(
+                            ecosystem,
+                            selected_bin,
+                            debug_container if debug_mode else None,
+                            debug_mode
+                        )
                     
                     if solutions:
                         ranked_solutions = SolutionGenerator.rank_solutions(
@@ -144,7 +155,7 @@ def find_solutions_page(debug_mode):
                                 st.write(f"Selected Bin: {selected_bin}")
                                 
                                 if debug_mode:
-                                    st.write("Solution Species IDs: {[s.id for s in solution]}")
+                                    st.write(f"Solution Species IDs: {[s.id for s in solution]}")
                                     st.write("Species Composition:")
                                     st.write(f"- Producers: {len([s for s in solution if s.species_type == SpeciesType.PRODUCER])}")
                                     st.write(f"- Animals: {len([s for s in solution if s.species_type == SpeciesType.ANIMAL])}")
