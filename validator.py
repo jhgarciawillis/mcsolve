@@ -1,6 +1,5 @@
 from typing import List, Dict, Tuple, Optional
 from species import Species, SpeciesType, Ecosystem
-from ecosystem import FeedingSimulation
 from constants import (
     TOTAL_PRODUCERS_NEEDED,
     TOTAL_ANIMALS_NEEDED,
@@ -59,6 +58,8 @@ class SolutionValidator:
             return False, errors
 
         # Simulate feeding rounds
+        from ecosystem import FeedingSimulation  # Lazy import
+        
         if self.debug_mode:
             self.debug_container.write("\nStarting feeding simulation...")
             
