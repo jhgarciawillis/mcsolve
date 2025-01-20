@@ -3,20 +3,25 @@ from typing import List, Dict, Tuple
 from pathlib import Path
 from species import Species, SpeciesType, Ecosystem
 from constants import (
-    SPECIES_COLUMNS,
+    BASE_SPECIES_COLUMNS,
     MIN_CALORIES,
     MAX_CALORIES,
     CALORIE_STEP,
-    MAX_PREDATORS,
-    MAX_PREY,
     BINS
 )
 
 class ExcelHandler:
     @staticmethod
+    def _get_predator_prey_columns(df: pd.DataFrame) -> Tuple[List[str], List[str]]:
+        """Get all predator and prey columns from dataframe"""
+        predator_cols = [col for col in df.columns if col.startswith('predator_')]
+        prey_cols = [col for col in df.columns if col.startswith('prey_')]
+        return predator_cols, prey_cols
+
+    @staticmethod
     def create_template(file_path: str):
         """Create an empty template Excel file"""
-        df = pd.DataFrame(columns=SPECIES_COLUMNS)
+        df = pd.DataFrame(columns=BASE_SPECIES_COLUMNS)
         
         with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
             df.to_excel(writer, sheet_name='Species', index=False)
@@ -47,7 +52,7 @@ class ExcelHandler:
             df = pd.read_excel(file_path)
             
             # Check required columns
-            missing_cols = set(SPECIES_COLUMNS) - set(df.columns)
+            missing_cols = set(BASE_SPECIES_COLUMNS) - set(df.columns)
             if missing_cols:
                 errors.append(f"Missing columns: {missing_cols}")
             
@@ -93,18 +98,19 @@ class ExcelHandler:
             raise ValueError(f"Invalid Excel format: {'; '.join(errors)}")
         
         df = pd.read_excel(file_path)
+        predator_cols, prey_cols = ExcelHandler._get_predator_prey_columns(df)
         species_list = []
         
         for _, row in df.iterrows():
-            # Get predators and prey, filtering out empty values
+            # Get all non-empty predators and prey
             predators = [
-                str(row[f'predator_{i}']) for i in range(1, MAX_PREDATORS + 1)
-                if f'predator_{i}' in row and pd.notna(row[f'predator_{i}'])
+                str(row[col]) for col in predator_cols
+                if pd.notna(row[col])
             ]
             
             prey = [
-                str(row[f'prey_{i}']) for i in range(1, MAX_PREY + 1)
-                if f'prey_{i}' in row and pd.notna(row[f'prey_{i}'])
+                str(row[col]) for col in prey_cols
+                if pd.notna(row[col])
             ]
             
             species = Species(
@@ -127,10 +133,6 @@ class ExcelHandler:
         data = []
         
         for species in ecosystem.species:
-            # Pad predators and prey lists to fixed length
-            predators = species.predators + [''] * (MAX_PREDATORS - len(species.predators))
-            prey = species.prey + [''] * (MAX_PREY - len(species.prey))
-            
             row = {
                 'id': species.id,
                 'name': species.name,
@@ -141,12 +143,12 @@ class ExcelHandler:
             }
             
             # Add predator columns
-            for i, pred in enumerate(predators, 1):
+            for i, pred in enumerate(species.predators, 1):
                 row[f'predator_{i}'] = pred
                 
             # Add prey columns
-            for i, pr in enumerate(prey, 1):
-                row[f'prey_{i}'] = pr
+            for i, prey in enumerate(species.prey, 1):
+                row[f'prey_{i}'] = prey
             
             data.append(row)
         
@@ -160,22 +162,24 @@ class ExcelHandler:
         species_data = []
         
         for species in solution:
-            species_data.append({
+            row = {
                 'id': species.id,
                 'name': species.name,
                 'type': species.species_type.value,
                 'calories_provided': species.calories_provided,
                 'calories_needed': species.calories_needed,
-                'bin': species.bin,
-                'predator_1': species.predators[0] if len(species.predators) > 0 else '',
-                'predator_2': species.predators[1] if len(species.predators) > 1 else '',
-                'predator_3': species.predators[2] if len(species.predators) > 2 else '',
-                'predator_4': species.predators[3] if len(species.predators) > 3 else '',
-                'prey_1': species.prey[0] if len(species.prey) > 0 else '',
-                'prey_2': species.prey[1] if len(species.prey) > 1 else '',
-                'prey_3': species.prey[2] if len(species.prey) > 2 else '',
-                'prey_4': species.prey[3] if len(species.prey) > 3 else ''
-            })
+                'bin': species.bin
+            }
+            
+            # Add predator columns
+            for i, pred in enumerate(species.predators, 1):
+                row[f'predator_{i}'] = pred
+                
+            # Add prey columns
+            for i, prey in enumerate(species.prey, 1):
+                row[f'prey_{i}'] = prey
+                
+            species_data.append(row)
         
         # Write to Excel
         with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
