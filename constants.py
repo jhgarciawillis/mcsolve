@@ -1,9 +1,13 @@
+# constants.py
+
 # Game Constants
 BINS = ['A', 'B', 'C']
 PRODUCERS_PER_BIN = 3
 ANIMALS_PER_BIN = 10
-TOTAL_PRODUCERS_NEEDED = 3
-TOTAL_ANIMALS_NEEDED = 5
+TOTAL_PRODUCERS_NEEDED_ALL_BINS = 3
+TOTAL_ANIMALS_NEEDED_ALL_BINS = 5
+TOTAL_PRODUCERS_NEEDED_SINGLE_BIN = 3
+TOTAL_ANIMALS_NEEDED_SINGLE_BIN = 10
 
 # Species Sheet Base Columns
 BASE_SPECIES_COLUMNS = [
@@ -28,8 +32,10 @@ TARGET_PREY = 2      # Most animals should have 2-3 prey
 
 # Error Messages
 ERROR_MESSAGES = {
-   'invalid_producer_count': 'Solution must contain exactly 3 producers',
-   'invalid_animal_count': 'Solution must contain exactly 5 animals',
+   'invalid_producer_count_all_bins': 'Solution must contain exactly 3 producers when starting from all bins',
+   'invalid_animal_count_all_bins': 'Solution must contain exactly 5 animals when starting from all bins',
+   'invalid_producer_count_single_bin': 'Solution must contain exactly 3 producers when starting from a single bin',
+   'invalid_animal_count_single_bin': 'Solution must contain exactly 10 animals when starting from a single bin',
    'calories_depleted': 'Species {} has been depleted of calories',
    'insufficient_calories': 'Species {} cannot obtain required calories',
    'invalid_bin': 'Not all species can coexist in the same bin',

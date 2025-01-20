@@ -1,3 +1,5 @@
+# excel_handler.py
+
 import pandas as pd
 from typing import List, Dict, Tuple
 from pathlib import Path
@@ -19,9 +21,21 @@ class ExcelHandler:
         return predator_cols, prey_cols
 
     @staticmethod
-    def create_template(file_path: str):
+    def create_template(file_path: str, all_bins: bool = True):
         """Create an empty template Excel file"""
-        df = pd.DataFrame(columns=BASE_SPECIES_COLUMNS)
+        if all_bins:
+            bins = BINS
+        else:
+            bins = ['A']  # Placeholder bin for single bin case
+        
+        data = []
+        for bin in bins:
+            for i in range(3):
+                data.append({'id': f'P_{bin}_{i+1}', 'type': 'producer', 'bin': bin})
+            for i in range(10):
+                data.append({'id': f'A_{bin}_{i+1}', 'type': 'animal', 'bin': bin})
+        
+        df = pd.DataFrame(data)
         
         with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
             df.to_excel(writer, sheet_name='Species', index=False)
@@ -37,12 +51,13 @@ class ExcelHandler:
             }
             worksheet.data_validation('C2:C1048576', type_validation)
             
-            # Add bin dropdown
-            bin_validation = {
-                'type': 'list',
-                'source': ['A', 'B', 'C']
-            }
-            worksheet.data_validation('F2:F1048576', bin_validation)
+            # Add bin dropdown if using all bins
+            if all_bins:
+                bin_validation = {
+                    'type': 'list',
+                    'source': ['A', 'B', 'C']
+                }
+                worksheet.data_validation('F2:F1048576', bin_validation)
 
     @staticmethod
     def validate_excel_format(file_path: str) -> Tuple[bool, List[str]]:
@@ -80,7 +95,7 @@ class ExcelHandler:
                 errors.append("Invalid species types found")
             
             # Validate bins
-            invalid_bins = df[~df['bin'].isin(['A', 'B', 'C'])]
+            invalid_bins = df[~df['bin'].isin(BINS)]
             if not invalid_bins.empty:
                 errors.append("Invalid bin values found")
             
