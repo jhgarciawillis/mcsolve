@@ -63,14 +63,16 @@ class ExcelHandler:
                     bin_id
                 ])
 
+        # Total rows
+        total_rows = len(list(worksheet.rows))
+
         # Add type validation
         type_validation = DataValidation(
             type="list", 
             formula1='"producer,animal"', 
             allow_blank=False
         )
-        type_range = f'C2:C{len(list(worksheet.rows))+1}'
-        type_validation.ranges.append(type_range)
+        type_validation.ranges.add(f'C2:C{total_rows}')
         worksheet.add_data_validation(type_validation)
 
         # Add bin validation
@@ -79,8 +81,7 @@ class ExcelHandler:
             formula1=f'"{",".join(bins)}"', 
             allow_blank=False
         )
-        bin_range = f'F2:F{len(list(worksheet.rows))+1}'
-        bin_validation.ranges.append(bin_range)
+        bin_validation.ranges.add(f'F2:F{total_rows}')
         worksheet.add_data_validation(bin_validation)
 
         # Save the workbook
