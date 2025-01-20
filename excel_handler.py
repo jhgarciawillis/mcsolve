@@ -171,6 +171,14 @@ class ExcelHandler:
     @staticmethod
     def write_scenario(ecosystem: Ecosystem, file_path: str):
         """Write ecosystem to Excel file"""
+        # Define full column set
+        columns = [
+            'id', 'name', 'type', 'calories_provided', 'calories_needed', 'bin', 
+            'predator_1', 'predator_2', 'predator_3', 'predator_4', 'predator_5', 
+            'predator_6', 'predator_7', 
+            'prey_1', 'prey_2', 'prey_3', 'prey_4', 'prey_5', 'prey_6', 'prey_7'
+        ]
+        
         data = []
         
         for species in ecosystem.species:
@@ -183,19 +191,33 @@ class ExcelHandler:
                 'bin': species.bin
             }
             
-            # Add predator columns
+            # Add empty predator columns
+            for i in range(1, 8):
+                row[f'predator_{i}'] = ''
+            
+            # Add predator columns with actual values
             for i, pred in enumerate(species.predators, 1):
                 row[f'predator_{i}'] = pred
-                
-            # Add prey columns
+            
+            # Add empty prey columns
+            for i in range(1, 8):
+                row[f'prey_{i}'] = ''
+            
+            # Add prey columns with actual values
             for i, prey in enumerate(species.prey, 1):
                 row[f'prey_{i}'] = prey
             
             data.append(row)
         
+        # Create DataFrame with full column set
         df = pd.DataFrame(data)
+        
+        # Reorder columns to match the full set
+        df = df[columns]
+        
+        # Write to Excel
         df.to_excel(file_path, index=False, sheet_name='Species')
-
+        
     @staticmethod
     def write_solution(solution: List[Species], feeding_history: List[Dict], file_path: str):
         """Write solution and feeding history to Excel file"""
