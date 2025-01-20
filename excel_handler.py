@@ -64,13 +64,23 @@ class ExcelHandler:
                 ])
 
         # Add type validation
-        type_validation = DataValidation(type="list", formula1='"producer,animal"', allow_blank=False)
-        type_validation.ranges.append(f'C2:C{len(list(worksheet.rows))+1}')
+        type_validation = DataValidation(
+            type="list", 
+            formula1='"producer,animal"', 
+            allow_blank=False
+        )
+        type_range = f'C2:C{len(list(worksheet.rows))+1}'
+        type_validation.ranges.append(type_range)
         worksheet.add_data_validation(type_validation)
 
         # Add bin validation
-        bin_validation = DataValidation(type="list", formula1=f'"{",".join(bins)}"', allow_blank=False)
-        bin_validation.ranges.append(f'F2:F{len(list(worksheet.rows))+1}')
+        bin_validation = DataValidation(
+            type="list", 
+            formula1=f'"{",".join(bins)}"', 
+            allow_blank=False
+        )
+        bin_range = f'F2:F{len(list(worksheet.rows))+1}'
+        bin_validation.ranges.append(bin_range)
         worksheet.add_data_validation(bin_validation)
 
         # Save the workbook
