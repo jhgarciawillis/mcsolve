@@ -218,6 +218,14 @@ class ExcelHandler:
     @staticmethod
     def write_solution(solution: List[Species], feeding_history: List[Dict], file_path: str):
         """Write solution and feeding history to Excel file"""
+        # Define full column set
+        columns = [
+            'id', 'name', 'type', 'calories_provided', 'calories_needed', 'bin', 
+            'predator_1', 'predator_2', 'predator_3', 'predator_4', 'predator_5', 
+            'predator_6', 'predator_7', 
+            'prey_1', 'prey_2', 'prey_3', 'prey_4', 'prey_5', 'prey_6', 'prey_7'
+        ]
+        
         # Create Species data
         species_data = []
         
@@ -231,20 +239,31 @@ class ExcelHandler:
                 'bin': species.bin
             }
             
-            # Add predator columns
-            for i, pred in enumerate(species.predators, 1):
-                row[f'predator_{i}'] = pred
-                
-            # Add prey columns
-            for i, prey in enumerate(species.prey, 1):
-                row[f'prey_{i}'] = prey
-                
+            # Add predator columns (up to 7)
+            for i in range(1, 8):
+                row[f'predator_{i}'] = species.predators[i-1] if i <= len(species.predators) else ''
+            
+            # Add prey columns (up to 7)
+            for i in range(1, 8):
+                row[f'prey_{i}'] = species.prey[i-1] if i <= len(species.prey) else ''
+            
             species_data.append(row)
+        
+        # Create DataFrame with full column set
+        df = pd.DataFrame(species_data)
+        
+        # Ensure all columns are present
+        for col in columns:
+            if col not in df.columns:
+                df[col] = ''
+        
+        # Reorder columns to match the full set
+        df = df[columns]
         
         # Write to Excel
         with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
             # Write species sheet
-            pd.DataFrame(species_data).to_excel(writer, sheet_name='Species', index=False)
+            df.to_excel(writer, sheet_name='Species', index=False)
             
             # Write feeding history if provided
             if feeding_history:
