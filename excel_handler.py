@@ -65,12 +65,12 @@ class ExcelHandler:
 
         # Add type validation
         type_validation = DataValidation(type="list", formula1='"producer,animal"', allow_blank=False)
-        type_validation.add_sqref(f'C2:C{len(worksheet["A"])+1}')
+        type_validation.ranges.append(f'C2:C{len(list(worksheet.rows))+1}')
         worksheet.add_data_validation(type_validation)
 
         # Add bin validation
         bin_validation = DataValidation(type="list", formula1=f'"{",".join(bins)}"', allow_blank=False)
-        bin_validation.add_sqref(f'F2:F{len(worksheet["A"])+1}')
+        bin_validation.ranges.append(f'F2:F{len(list(worksheet.rows))+1}')
         worksheet.add_data_validation(bin_validation)
 
         # Save the workbook
@@ -81,7 +81,7 @@ class ExcelHandler:
         """Validate if Excel file matches required format"""
         errors = []
         try:
-            df = pd.read_excel(file_path)
+            df = pd.read_excel(file_path, sheet_name='Species')
             
             # Check required columns
             missing_cols = set(BASE_SPECIES_COLUMNS) - set(df.columns)
