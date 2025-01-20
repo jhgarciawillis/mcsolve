@@ -191,33 +191,30 @@ class ExcelHandler:
                 'bin': species.bin
             }
             
-            # Add empty predator columns
+            # Add predator columns (up to 7)
             for i in range(1, 8):
-                row[f'predator_{i}'] = ''
+                row[f'predator_{i}'] = species.predators[i-1] if i <= len(species.predators) else ''
             
-            # Add predator columns with actual values
-            for i, pred in enumerate(species.predators, 1):
-                row[f'predator_{i}'] = pred
-            
-            # Add empty prey columns
+            # Add prey columns (up to 7)
             for i in range(1, 8):
-                row[f'prey_{i}'] = ''
-            
-            # Add prey columns with actual values
-            for i, prey in enumerate(species.prey, 1):
-                row[f'prey_{i}'] = prey
+                row[f'prey_{i}'] = species.prey[i-1] if i <= len(species.prey) else ''
             
             data.append(row)
         
         # Create DataFrame with full column set
         df = pd.DataFrame(data)
         
+        # Ensure all columns are present
+        for col in columns:
+            if col not in df.columns:
+                df[col] = ''
+        
         # Reorder columns to match the full set
         df = df[columns]
         
         # Write to Excel
         df.to_excel(file_path, index=False, sheet_name='Species')
-        
+
     @staticmethod
     def write_solution(solution: List[Species], feeding_history: List[Dict], file_path: str):
         """Write solution and feeding history to Excel file"""

@@ -116,26 +116,14 @@ class ScenarioGenerator:
             potential_predators = animals_sorted.copy()
             random.shuffle(potential_predators)
             
-            # Ensure we always create up to 7 predator columns
-            if not hasattr(producer, 'predators'):
-                producer.predators = []
-            
             for predator in potential_predators[:num_predators]:
                 predator.add_prey(producer.id)
                 producer.add_predator(predator.id)
-            
-            # Pad predators to 7 if needed
-            while len(producer.predators) < 7:
-                producer.predators.append('')
 
         # Assign prey and predators to animals
         for i, animal in enumerate(animals_sorted):
             # Potential prey are animals with lower calories
             potential_prey = animals_sorted[i+1:] + producers
-            
-            # Ensure we always create prey attribute
-            if not hasattr(animal, 'prey'):
-                animal.prey = []
             
             if potential_prey:
                 num_prey = min(random.randint(2, 3), len(potential_prey))
@@ -144,10 +132,6 @@ class ScenarioGenerator:
                 for prey in selected_prey:
                     animal.add_prey(prey.id)
                     prey.add_predator(animal.id)
-            
-            # Pad prey to 7 if needed
-            while len(animal.prey) < 7:
-                animal.prey.append('')
 
     def _establish_relationships(self, species: List[Species]):
         """Establish all relationships"""
