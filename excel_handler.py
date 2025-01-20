@@ -11,6 +11,8 @@ from constants import (
     PRODUCERS_PER_BIN,
     ANIMALS_PER_BIN
 )
+from openpyxl import Workbook
+from openpyxl.worksheet.datavalidation import DataValidation
 
 class ExcelHandler:
     @staticmethod
@@ -28,36 +30,51 @@ class ExcelHandler:
         else:
             bins = ['A']  # Default to single bin
         
-        data = []
+        # Create a workbook and select the active worksheet
+        workbook = Workbook()
+        worksheet = workbook.active
+        worksheet.title = 'Species'
+
+        # Create headers
+        headers = ['id', 'name', 'type', 'calories_provided', 'calories_needed', 'bin']
+        worksheet.append(headers)
+
+        # Add data
         for bin_id in bins:
             # Add producers
             for i in range(PRODUCERS_PER_BIN):
-                data.append({'id': f'P_{bin_id}_{i+1}', 'type': 'producer', 'bin': bin_id})
+                worksheet.append([
+                    f'P_{bin_id}_{i+1}', 
+                    f'Producer {bin_id}{i+1}', 
+                    'producer', 
+                    0, 
+                    0, 
+                    bin_id
+                ])
             
             # Add animals
             for i in range(ANIMALS_PER_BIN):
-                data.append({'id': f'A_{bin_id}_{i+1}', 'type': 'animal', 'bin': bin_id})
-        
-        df = pd.DataFrame(data)
-        
-        with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
-            df.to_excel(writer, sheet_name='Species', index=False)
-            
-            # Add data validation
-            workbook = writer.book
-            worksheet = writer.sheets['Species']
-            
-            # Add type dropdown
-            type_validation = workbook.add_data_validation(f'C2:C{len(data)+1}')
-            type_validation.type = 'list'
-            type_validation.formula1 = '"producer,animal"'
-            worksheet.add_data_validation(type_validation)
-            
-            # Add bin dropdown
-            bin_validation = workbook.add_data_validation(f'F2:F{len(data)+1}')
-            bin_validation.type = 'list'
-            bin_validation.formula1 = f'"{",".join(bins)}"'
-            worksheet.add_data_validation(bin_validation)
+                worksheet.append([
+                    f'A_{bin_id}_{i+1}', 
+                    f'Animal {bin_id}{i+1}', 
+                    'animal', 
+                    0, 
+                    0, 
+                    bin_id
+                ])
+
+        # Add type validation
+        type_validation = DataValidation(type="list", formula1='"producer,animal"', allow_blank=False)
+        type_validation.add_sqref(f'C2:C{len(worksheet["A"])+1}')
+        worksheet.add_data_validation(type_validation)
+
+        # Add bin validation
+        bin_validation = DataValidation(type="list", formula1=f'"{",".join(bins)}"', allow_blank=False)
+        bin_validation.add_sqref(f'F2:F{len(worksheet["A"])+1}')
+        worksheet.add_data_validation(bin_validation)
+
+        # Save the workbook
+        workbook.save(file_path)
 
     @staticmethod
     def validate_excel_format(file_path: str) -> Tuple[bool, List[str]]:
