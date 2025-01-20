@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from typing import List, Set, Dict, Optional
 from enum import Enum
-from constants import MAX_PREDATORS, MAX_PREY
 
 class SpeciesType(Enum):
     PRODUCER = "producer"
@@ -22,11 +21,7 @@ class Species:
         # Initialize empty lists if None
         self.predators = [] if self.predators is None else self.predators
         self.prey = [] if self.prey is None else self.prey
-        
-        # Enforce maximum lengths
-        self.predators = self.predators[:MAX_PREDATORS]
-        self.prey = self.prey[:MAX_PREY]
-        
+
         # Enforce producer rules
         if self.species_type == SpeciesType.PRODUCER:
             self.calories_needed = 0
@@ -46,17 +41,17 @@ class Species:
         )
 
     def add_predator(self, predator_id: str) -> bool:
-        """Add a predator if space available"""
-        if len(self.predators) < MAX_PREDATORS and predator_id not in self.predators:
+        """Add a predator"""
+        if predator_id not in self.predators:
             self.predators.append(predator_id)
             return True
         return False
 
     def add_prey(self, prey_id: str) -> bool:
-        """Add a prey if space available and not a producer"""
+        """Add a prey if not a producer"""
         if self.species_type == SpeciesType.PRODUCER:
             return False
-        if len(self.prey) < MAX_PREY and prey_id not in self.prey:
+        if prey_id not in self.prey:
             self.prey.append(prey_id)
             return True
         return False
@@ -70,35 +65,16 @@ class Species:
         """Remove a prey"""
         if prey_id in self.prey:
             self.prey.remove(prey_id)
-
-    def get_total_predator_count(self) -> int:
-        """Get total number of predators"""
-        return len(self.predators)
-
-    def get_total_prey_count(self) -> int:
-        """Get total number of prey"""
-        return len(self.prey)
-
-    def get_predators_in_bin(self, species_dict: Dict[str, 'Species'], bin_id: str) -> List[str]:
-        """Get predators from a specific bin"""
-        return [pred_id for pred_id in self.predators 
-                if pred_id in species_dict and species_dict[pred_id].bin == bin_id]
-
-    def get_prey_in_bin(self, species_dict: Dict[str, 'Species'], bin_id: str) -> List[str]:
-        """Get prey from a specific bin"""
-        return [prey_id for prey_id in self.prey 
-                if prey_id in species_dict and species_dict[prey_id].bin == bin_id]
-
-    def get_cross_bin_relationships_count(self, species_dict: Dict[str, 'Species']) -> int:
-        """Count relationships with species from different bins"""
-        count = 0
-        for pred_id in self.predators:
-            if pred_id in species_dict and species_dict[pred_id].bin != self.bin:
-                count += 1
-        for prey_id in self.prey:
-            if prey_id in species_dict and species_dict[prey_id].bin != self.bin:
-                count += 1
-        return count
+            
+    def filter_relationships_by_bin(self, species_dict: Dict[str, 'Species']):
+        """Filter relationships to only include species from the same bin"""
+        self.predators = [pred_id for pred_id in self.predators 
+                         if pred_id in species_dict and
+                         species_dict[pred_id].bin == self.bin]
+        
+        self.prey = [prey_id for prey_id in self.prey
+                    if prey_id in species_dict and
+                    species_dict[prey_id].bin == self.bin]
 
     def __hash__(self):
         return hash(self.id)

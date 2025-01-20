@@ -5,22 +5,14 @@ ANIMALS_PER_BIN = 10
 TOTAL_PRODUCERS_NEEDED = 3
 TOTAL_ANIMALS_NEEDED = 5
 
-# Species Sheet Columns
-SPECIES_COLUMNS = [
+# Species Sheet Base Columns
+BASE_SPECIES_COLUMNS = [
    'id', 
    'name', 
    'type', 
    'calories_provided', 
    'calories_needed', 
-   'bin',
-   'predator_1', 
-   'predator_2', 
-   'predator_3', 
-   'predator_4',
-   'prey_1', 
-   'prey_2', 
-   'prey_3', 
-   'prey_4'
+   'bin'
 ]
 
 # Calorie Constants
@@ -29,12 +21,10 @@ MAX_CALORIES = 6000
 CALORIE_STEP = 50
 
 # Relationship Constants
-MAX_PREDATORS = 4
-MAX_PREY = 4
-TARGET_PREDATORS = 2  # Most species should have 2-3 predators
-TARGET_PREY = 2      # Most animals should have 2-3 prey
 SAME_BIN_RELATIONSHIP_PROBABILITY = 1  # 100% chance relationships are in same bin
 DIFFERENT_BIN_RELATIONSHIP_PROBABILITY = 0  # 0% chance for cross-bin relationships
+TARGET_PREDATORS = 2  # Most species should have 2-3 predators
+TARGET_PREY = 2      # Most animals should have 2-3 prey
 
 # Error Messages
 ERROR_MESSAGES = {

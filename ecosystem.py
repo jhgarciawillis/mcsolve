@@ -1,5 +1,4 @@
 from typing import List, Dict, Tuple, Set, Optional
-from dataclasses import dataclass
 from species import Species, SpeciesType, Ecosystem
 from constants import (
     MIN_CALORIES,
@@ -11,9 +10,11 @@ from constants import (
 
 class FeedingSimulation:
     def __init__(self, species: List[Species], debug_container=None, debug_mode=False):
+        """Initialize feeding simulation with initial calories for all species"""
         self.species = species
+        self.species_dict = {s.id: s for s in species}
         self.calories_remaining = {s.id: s.calories_provided for s in species}
-        self.has_eaten = set()  # Track which species have fed
+        self.has_eaten = set()  # Track which species have eaten
         self.feeding_history = []
         self.debug_container = debug_container
         self.debug_mode = debug_mode
@@ -31,16 +32,17 @@ class FeedingSimulation:
             self.debug_container.write("\nStarting feeding simulation...")
 
         while True:
-            # Find next species with highest remaining calories that hasn't eaten yet
+            # Find next animal with highest current calories that hasn't eaten
             next_predator = self._get_next_predator()
             if not next_predator:
-                break  # No more species that can feed
+                break  # No more animals that need to feed
                 
             if self.debug_mode:
                 self.debug_container.write(f"\nNext predator: {next_predator.name}")
                 self.debug_container.write(f"Current calories: {self.calories_remaining[next_predator.id]}")
                 self.debug_container.write(f"Calories needed: {next_predator.calories_needed}")
             
+            # Try to feed the predator in a single sitting
             if not self._feed_species(next_predator):
                 if self.debug_mode:
                     self.debug_container.write(f"Failed to feed {next_predator.name}")
@@ -49,22 +51,14 @@ class FeedingSimulation:
                         self.debug_container.write(f"- {s.name}: {self.calories_remaining[s.id]}")
                 return False, self.feeding_history
 
-            # Check if any species has 0 or negative calories after feeding
-            for species in self.species:
-                if self.calories_remaining[species.id] <= 0:
+        # Verify all animals have eaten and no species depleted
+        for species in self.species:
+            if species.species_type == SpeciesType.ANIMAL:
+                if species.id not in self.has_eaten:
                     if self.debug_mode:
-                        self.debug_container.write(f"{species.name} has been depleted to {self.calories_remaining[species.id]} calories")
+                        self.debug_container.write(f"{species.name} failed to eat")
                     return False, self.feeding_history
-
-        # Check if any species that needs to eat hasn't eaten
-        for species in self.species:
-            if species.species_type == SpeciesType.ANIMAL and species.id not in self.has_eaten:
-                if self.debug_mode:
-                    self.debug_container.write(f"{species.name} failed to eat")
-                return False, self.feeding_history
-        
-        # Final check for any species with 0 or negative calories
-        for species in self.species:
+                
             if self.calories_remaining[species.id] <= 0:
                 if self.debug_mode:
                     self.debug_container.write(f"{species.name} ended with {self.calories_remaining[species.id]} calories")
@@ -79,7 +73,7 @@ class FeedingSimulation:
         return True, self.feeding_history
 
     def _get_next_predator(self) -> Optional[Species]:
-        """Get next species that should feed (highest remaining calories that hasn't eaten)"""
+        """Get next animal with highest current calories that hasn't eaten"""
         available_predators = [s for s in self.species 
                              if s.species_type == SpeciesType.ANIMAL 
                              and s.id not in self.has_eaten]
@@ -89,95 +83,71 @@ class FeedingSimulation:
         return max(available_predators, key=lambda x: self.calories_remaining[x.id])
 
     def _feed_species(self, species: Species) -> bool:
-        """Feed a single species"""
+        """Feed a species their required calories in a single sitting"""
         if species.id in self.has_eaten:
             if self.debug_mode:
                 self.debug_container.write(f"{species.name} has already eaten")
             return True
-        
+
+        # Get available prey sorted by current calories
         available_prey = self._get_available_prey(species)
         if not available_prey:
             if self.debug_mode:
                 self.debug_container.write(f"No available prey for {species.name}")
             return False
-        
+
+        # Must fulfill all calories needed in single sitting
         if not self._distribute_feeding(species, available_prey, species.calories_needed):
             if self.debug_mode:
-                self.debug_container.write(f"Failed to distribute feeding for {species.name}")
+                self.debug_container.write(f"Failed to feed {species.name} required calories in single sitting")
             return False
 
         self.has_eaten.add(species.id)
         return True
 
     def _distribute_feeding(self, predator: Species, prey: List[Species], calories_needed: int) -> bool:
-        """Distribute feeding across prey"""
+        """Distribute feeding across prey with highest equal calories"""
         if not prey:
             return False
-        
+            
         if self.debug_mode:
             self.debug_container.write(f"\nDistributing feeding for {predator.name}")
             self.debug_container.write(f"Calories needed: {calories_needed}")
-        
-        # Group prey by available calories
-        calories_groups = {}
-        for p in prey:
-            remaining = self.calories_remaining[p.id]
-            if remaining not in calories_groups:
-                calories_groups[remaining] = []
-            calories_groups[remaining].append(p)
-        
-        # Take from highest calorie prey first
-        max_calories = max(calories_groups.keys())
-        max_calorie_prey = calories_groups[max_calories]
-        
-        if len(max_calorie_prey) > 1:
-            # Multiple prey with same calories - distribute evenly
-            calories_per_prey = calories_needed / len(max_calorie_prey)
-            for p in max_calorie_prey:
-                new_calories = self.calories_remaining[p.id] - calories_per_prey
-                if new_calories <= 0:  # Check before applying
-                    if self.debug_mode:
-                        self.debug_container.write(f"Would deplete {p.name} to {new_calories}")
-                    return False
-                
-                self.calories_remaining[p.id] = new_calories
-                self.feeding_history.append({
-                    "predator": predator.id,
-                    "prey": p.id,
-                    "calories_consumed": calories_per_prey
-                })
-                
+
+        # Find prey with highest current calories
+        max_current_calories = max(self.calories_remaining[p.id] for p in prey)
+        max_calorie_prey = [p for p in prey if self.calories_remaining[p.id] == max_current_calories]
+
+        # Calculate even distribution among prey with same highest calories
+        calories_per_prey = calories_needed / len(max_calorie_prey)
+
+        # Verify we won't deplete any prey
+        for p in max_calorie_prey:
+            new_calories = self.calories_remaining[p.id] - calories_per_prey
+            if new_calories <= 0:
                 if self.debug_mode:
-                    self.debug_container.write(
-                        f"Took {calories_per_prey} calories from {p.name} "
-                        f"({self.calories_remaining[p.id]} remaining)"
-                    )
-        else:
-            # Single prey - take all needed calories
-            prey = max_calorie_prey[0]
-            new_calories = self.calories_remaining[prey.id] - calories_needed
-            if new_calories <= 0:  # Check before applying
-                if self.debug_mode:
-                    self.debug_container.write(f"Would deplete {prey.name} to {new_calories}")
+                    self.debug_container.write(f"Would deplete {p.name} to {new_calories}")
                 return False
-                
-            self.calories_remaining[prey.id] = new_calories
+
+        # Apply the feeding distribution
+        for p in max_calorie_prey:
+            self.calories_remaining[p.id] -= calories_per_prey
             self.feeding_history.append({
                 "predator": predator.id,
-                "prey": prey.id,
-                "calories_consumed": calories_needed
+                "prey": p.id,
+                "calories_consumed": calories_per_prey
             })
             
             if self.debug_mode:
                 self.debug_container.write(
-                    f"Took {calories_needed} calories from {prey.name} "
-                    f"({self.calories_remaining[prey.id]} remaining)"
+                    f"Took {calories_per_prey} calories from {p.name} "
+                    f"({self.calories_remaining[p.id]} remaining)"
                 )
-            
+
         return True
 
     def _get_available_prey(self, species: Species) -> List[Species]:
-        """Get all available prey for a species, sorted by current calories"""
+        """Get all available prey for a species, sorted by current remaining calories"""
         available = [s for s in self.species 
                     if s.id in species.prey and self.calories_remaining[s.id] > 0]
         
