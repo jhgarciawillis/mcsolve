@@ -21,19 +21,22 @@ class ExcelHandler:
         return predator_cols, prey_cols
 
     @staticmethod
-    def create_template(file_path: str):
+    def create_template(file_path: str, all_bins: bool = True):
         """Create an empty template Excel file"""
-        # For a single bin scenario
-        bin_id = 'A'  # Default to Bin A
+        if all_bins:
+            bins = BINS
+        else:
+            bins = ['A']  # Default to single bin
         
         data = []
-        # Add producers
-        for i in range(PRODUCERS_PER_BIN):
-            data.append({'id': f'P_{bin_id}_{i+1}', 'type': 'producer', 'bin': bin_id})
-        
-        # Add animals
-        for i in range(ANIMALS_PER_BIN):
-            data.append({'id': f'A_{bin_id}_{i+1}', 'type': 'animal', 'bin': bin_id})
+        for bin_id in bins:
+            # Add producers
+            for i in range(PRODUCERS_PER_BIN):
+                data.append({'id': f'P_{bin_id}_{i+1}', 'type': 'producer', 'bin': bin_id})
+            
+            # Add animals
+            for i in range(ANIMALS_PER_BIN):
+                data.append({'id': f'A_{bin_id}_{i+1}', 'type': 'animal', 'bin': bin_id})
         
         df = pd.DataFrame(data)
         
@@ -45,18 +48,16 @@ class ExcelHandler:
             worksheet = writer.sheets['Species']
             
             # Add type dropdown
-            type_validation = {
-                'type': 'list',
-                'source': ['producer', 'animal']
-            }
-            worksheet.data_validation('C2:C1048576', type_validation)
+            type_validation = workbook.add_data_validation(f'C2:C{len(data)+1}')
+            type_validation.type = 'list'
+            type_validation.formula1 = '"producer,animal"'
+            worksheet.add_data_validation(type_validation)
             
             # Add bin dropdown
-            bin_validation = {
-                'type': 'list',
-                'source': BINS
-            }
-            worksheet.data_validation('F2:F1048576', bin_validation)
+            bin_validation = workbook.add_data_validation(f'F2:F{len(data)+1}')
+            bin_validation.type = 'list'
+            bin_validation.formula1 = f'"{",".join(bins)}"'
+            worksheet.add_data_validation(bin_validation)
 
     @staticmethod
     def validate_excel_format(file_path: str) -> Tuple[bool, List[str]]:
