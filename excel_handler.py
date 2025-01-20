@@ -35,33 +35,40 @@ class ExcelHandler:
         worksheet = workbook.active
         worksheet.title = 'Species'
 
-        # Create headers
-        headers = ['id', 'name', 'type', 'calories_provided', 'calories_needed', 'bin']
+        # Create headers with all specified columns
+        headers = [
+            'id', 'name', 'type', 'calories_provided', 'calories_needed', 'bin', 
+            'predator_1', 'predator_2', 'predator_3', 'predator_4', 'predator_5', 
+            'predator_6', 'predator_7', 
+            'prey_1', 'prey_2', 'prey_3', 'prey_4', 'prey_5', 'prey_6', 'prey_7'
+        ]
         worksheet.append(headers)
 
         # Add data
         for bin_id in bins:
             # Add producers
             for i in range(PRODUCERS_PER_BIN):
-                worksheet.append([
-                    f'P_{bin_id}_{i+1}', 
-                    f'Producer {bin_id}{i+1}', 
-                    'producer', 
-                    0, 
-                    0, 
-                    bin_id
-                ])
+                row = [
+                    f'P_{bin_id}_{i+1}',  # id
+                    f'Producer {bin_id}{i+1}',  # name
+                    'producer',  # type
+                    0,  # calories_provided
+                    0,  # calories_needed
+                    bin_id,  # bin
+                ] + ['' for _ in range(14)]  # predators and prey columns
+                worksheet.append(row)
             
             # Add animals
             for i in range(ANIMALS_PER_BIN):
-                worksheet.append([
-                    f'A_{bin_id}_{i+1}', 
-                    f'Animal {bin_id}{i+1}', 
-                    'animal', 
-                    0, 
-                    0, 
-                    bin_id
-                ])
+                row = [
+                    f'A_{bin_id}_{i+1}',  # id
+                    f'Animal {bin_id}{i+1}',  # name
+                    'animal',  # type
+                    0,  # calories_provided
+                    0,  # calories_needed
+                    bin_id,  # bin
+                ] + ['' for _ in range(14)]  # predators and prey columns
+                worksheet.append(row)
 
         # Total rows
         total_rows = len(list(worksheet.rows))
@@ -94,8 +101,16 @@ class ExcelHandler:
         try:
             df = pd.read_excel(file_path, sheet_name='Species')
             
+            # Define expected columns
+            expected_columns = [
+                'id', 'name', 'type', 'calories_provided', 'calories_needed', 'bin', 
+                'predator_1', 'predator_2', 'predator_3', 'predator_4', 'predator_5', 
+                'predator_6', 'predator_7', 
+                'prey_1', 'prey_2', 'prey_3', 'prey_4', 'prey_5', 'prey_6', 'prey_7'
+            ]
+            
             # Check required columns
-            missing_cols = set(BASE_SPECIES_COLUMNS) - set(df.columns)
+            missing_cols = set(expected_columns) - set(df.columns)
             if missing_cols:
                 errors.append(f"Missing columns: {missing_cols}")
             
