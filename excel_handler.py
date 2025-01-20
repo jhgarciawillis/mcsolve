@@ -30,69 +30,52 @@ class ExcelHandler:
         else:
             bins = ['A']  # Default to single bin
         
-        # Create a workbook and select the active worksheet
-        workbook = Workbook()
-        worksheet = workbook.active
-        worksheet.title = 'Species'
-
-        # Create headers with all specified columns
-        headers = [
+        # Create DataFrame with full column set
+        columns = [
             'id', 'name', 'type', 'calories_provided', 'calories_needed', 'bin', 
             'predator_1', 'predator_2', 'predator_3', 'predator_4', 'predator_5', 
             'predator_6', 'predator_7', 
             'prey_1', 'prey_2', 'prey_3', 'prey_4', 'prey_5', 'prey_6', 'prey_7'
         ]
-        worksheet.append(headers)
-
-        # Add data
+        
+        # Prepare data
+        data = []
         for bin_id in bins:
             # Add producers
             for i in range(PRODUCERS_PER_BIN):
-                row = [
-                    f'P_{bin_id}_{i+1}',  # id
-                    f'Producer {bin_id}{i+1}',  # name
-                    'producer',  # type
-                    0,  # calories_provided
-                    0,  # calories_needed
-                    bin_id,  # bin
-                ] + ['' for _ in range(14)]  # predators and prey columns
-                worksheet.append(row)
+                row = {
+                    'id': f'P_{bin_id}_{i+1}',
+                    'name': f'Producer {bin_id}{i+1}',
+                    'type': 'producer',
+                    'calories_provided': 0,
+                    'calories_needed': 0,
+                    'bin': bin_id,
+                }
+                # Add empty predator and prey columns
+                for j in range(1, 8):
+                    row[f'predator_{j}'] = ''
+                    row[f'prey_{j}'] = ''
+                data.append(row)
             
             # Add animals
             for i in range(ANIMALS_PER_BIN):
-                row = [
-                    f'A_{bin_id}_{i+1}',  # id
-                    f'Animal {bin_id}{i+1}',  # name
-                    'animal',  # type
-                    0,  # calories_provided
-                    0,  # calories_needed
-                    bin_id,  # bin
-                ] + ['' for _ in range(14)]  # predators and prey columns
-                worksheet.append(row)
-
-        # Total rows
-        total_rows = len(list(worksheet.rows))
-
-        # Add type validation
-        type_validation = DataValidation(
-            type="list", 
-            formula1='"producer,animal"', 
-            allow_blank=False
-        )
-        type_validation.ranges.add(f'C2:C{total_rows}')
-        worksheet.add_data_validation(type_validation)
-
-        # Add bin validation
-        bin_validation = DataValidation(
-            type="list", 
-            formula1=f'"{",".join(bins)}"', 
-            allow_blank=False
-        )
-        bin_validation.ranges.add(f'F2:F{total_rows}')
-        worksheet.add_data_validation(bin_validation)
-
-        # Save the workbook
-        workbook.save(file_path)
+                row = {
+                    'id': f'A_{bin_id}_{i+1}',
+                    'name': f'Animal {bin_id}{i+1}',
+                    'type': 'animal',
+                    'calories_provided': 0,
+                    'calories_needed': 0,
+                    'bin': bin_id,
+                }
+                # Add empty predator and prey columns
+                for j in range(1, 8):
+                    row[f'predator_{j}'] = ''
+                    row[f'prey_{j}'] = ''
+                data.append(row)
+        
+        # Create DataFrame and save
+        df = pd.DataFrame(data)[columns]
+        df.to_excel(file_path, sheet_name='Species', index=False)
 
     @staticmethod
     def validate_excel_format(file_path: str) -> Tuple[bool, List[str]]:
