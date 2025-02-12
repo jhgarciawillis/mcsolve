@@ -1,6 +1,6 @@
 # McKinsey Solve Game Helper
 
-A comprehensive tool to help analyze and solve the McKinsey Solve Game ecosystem challenge.
+A comprehensive tool to help study for the McKinsey Solve Game ecosystem challenge.
 
 ## Features
 
